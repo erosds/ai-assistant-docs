@@ -1,0 +1,32 @@
+# FastAPI e server
+fastapi
+uvicorn[standard]
+python-multipart
+
+# LangChain per orchestrazione
+langchain
+langchain-community
+
+# Embedding e ricerca vettoriale
+sentence-transformers
+faiss-cpu
+numpy
+
+# Parsing PDF
+PyMuPDF
+
+# Database
+pymongo
+motor
+
+# Ollama client
+ollama
+
+# Utilities
+python-dotenv
+pydantic
+pydantic-settings
+
+# HTTP requests
+httpx
+aiofiles
