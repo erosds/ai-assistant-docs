@@ -9,7 +9,7 @@ from app.core.config import settings, create_directories
 from app.db.mongo import init_database
 from app.core.llm import initialize_llm
 from app.services.indexing import initialize_indexing_service
-from app.api.routes import upload, chat, docs
+from app.api.routes import upload, chat, docs, models
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -57,6 +57,7 @@ app.add_middleware(
 app.include_router(upload.router, prefix="/api/v1", tags=["upload"])
 app.include_router(chat.router, prefix="/api/v1", tags=["chat"])
 app.include_router(docs.router, prefix="/api/v1", tags=["documents"])
+app.include_router(models.router, prefix="/api/v1", tags=["models"])
 
 @app.get("/")
 async def root():

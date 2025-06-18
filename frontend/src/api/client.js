@@ -175,6 +175,37 @@ export const chatAPI = {
   },
 };
 
+// Models API
+export const modelsAPI = {
+  // Ottieni modelli disponibili
+  getAvailableModels: async () => {
+    const response = await apiClient.get('/models');
+    return response.data;
+  },
+
+  // Cambia modello corrente
+  changeModel: async (modelName) => {
+    const response = await apiClient.post('/models/change', {
+      model_name: modelName
+    });
+    return response.data;
+  },
+
+  // Ottieni modello corrente
+  getCurrentModel: async () => {
+    const response = await apiClient.get('/models/current');
+    return response.data;
+  },
+
+  // Testa un modello
+  testModel: async (modelName) => {
+    const response = await apiClient.post('/models/test', {
+      model_name: modelName
+    });
+    return response.data;
+  },
+};
+
 // Health check
 export const healthAPI = {
   checkHealth: async () => {

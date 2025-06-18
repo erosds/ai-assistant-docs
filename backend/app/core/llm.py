@@ -7,7 +7,7 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 class OllamaClient:
-    """Client per comunicare con Ollama"""
+    """Client per comunicare con Ollama - Ottimizzato per M1"""
     
     def __init__(self):
         self.client = ollama.Client(host=settings.ollama_base_url)
@@ -17,18 +17,16 @@ class OllamaClient:
         """Verifica se il modello è disponibile"""
         try:
             models = await asyncio.to_thread(self.client.list)
-            logger.info(f"Modelli disponibili da Ollama: {models}")  # DEBUG
+            logger.info(f"Modelli disponibili da Ollama: {models}")
 
-            # Se models è un dict con chiave 'models'
+            # Estrai i nomi dei modelli
             if isinstance(models, dict) and 'models' in models:
                 model_list = models['models']
-            # Se models ha attributo .models
             elif hasattr(models, 'models'):
                 model_list = models.models
             else:
                 model_list = models
 
-            # Ora estrai i nomi dei modelli
             available_models = []
             for m in model_list:
                 if isinstance(m, dict) and 'model' in m:
@@ -37,7 +35,6 @@ class OllamaClient:
                     available_models.append(m.model)
                 elif isinstance(m, str):
                     available_models.append(m)
-                # aggiungi altri casi se necessario
 
             if self.model in available_models:
                 logger.info(f"✅ Modello {self.model} disponibile")
@@ -51,7 +48,7 @@ class OllamaClient:
             return False
     
     async def generate_response(self, prompt: str, system_prompt: str = None) -> str:
-        """Genera risposta usando Ollama"""
+        """Genera risposta usando Ollama - Ottimizzato per M1"""
         try:
             messages = []
             
@@ -66,16 +63,23 @@ class OllamaClient:
                 "content": prompt
             })
             
+            # Opzioni ottimizzate per M1 Pro - CORRETTE per Ollama
+            m1_options = {
+                "temperature": 0.7,
+                "top_p": 0.9,
+                "num_predict": 2048,     # CORRETTO: usare num_predict invece di max_tokens
+                "num_ctx": 4096,         # Contesto bilanciato
+                "repeat_penalty": 1.1,
+                "num_thread": 8,         # M1 Pro core count
+                "seed": 42,              # Per riproducibilità
+            }
+            
             # Chiamata asincrona a Ollama
             response = await asyncio.to_thread(
                 self.client.chat,
                 model=self.model,
                 messages=messages,
-                options={
-                    "temperature": 0.7,
-                    "top_p": 0.9,
-                    "max_tokens": 2000
-                }
+                options=m1_options
             )
             
             return response['message']['content']
@@ -85,44 +89,51 @@ class OllamaClient:
             raise Exception(f"Errore LLM: {str(e)}")
 
 class RAGPromptBuilder:
-    """Costruisce prompt per RAG (Retrieval-Augmented Generation)"""
+    """Costruisce prompt per RAG - Ottimizzato per modelli M1"""
     
     @staticmethod
     def build_system_prompt() -> str:
-        """Prompt di sistema per l'AI assistant"""
+        """Prompt di sistema ottimizzato per M1"""
         return """Sei un assistente AI specializzato nell'analisi di documenti. 
 
 ISTRUZIONI:
-- Rispondi SOLO basandoti sui contenuti forniti nei documenti
-- Se la risposta non è presente nei documenti, di' chiaramente che non hai informazioni sufficienti
-- Cita sempre le parti specifiche del documento da cui prendi le informazioni
-- Mantieni un tono professionale e preciso
-- Se possibile, fornisci citazioni dirette tra virgolette
-- Non inventare informazioni che non sono presenti nei documenti
+- Rispondi basandoti SOLO sui contenuti forniti
+- Se non hai informazioni sufficienti, dillo chiaramente
+- Mantieni risposte concise ma complete
+- Cita le parti specifiche del documento
+- Usa un tono professionale
 
 FORMATO RISPOSTA:
-- Inizia con una risposta diretta alla domanda
-- Fornisci dettagli specifici dal documento
-- Concludi con riferimenti alle sezioni/pagine quando disponibili"""
+- Inizia con risposta diretta
+- Aggiungi dettagli dal documento
+- Concludi con riferimenti quando disponibili"""
 
     @staticmethod
     def build_user_prompt(question: str, contexts: List[str], document_name: str) -> str:
-        """Costruisce prompt utente con contesto"""
-        context_text = "\n\n".join([f"SEZIONE {i+1}:\n{ctx}" for i, ctx in enumerate(contexts)])
+        """Costruisce prompt utente con contesto - Ottimizzato"""
+        # Limita il contesto per M1 (max 3000 caratteri totali)
+        max_context_length = 2500
+        context_text = ""
+        
+        for i, ctx in enumerate(contexts):
+            section = f"SEZIONE {i+1}:\n{ctx}\n\n"
+            if len(context_text + section) > max_context_length:
+                break
+            context_text += section
         
         prompt = f"""DOCUMENTO: {document_name}
 
 CONTENUTO RILEVANTE:
-{context_text}
+{context_text.strip()}
 
 DOMANDA: {question}
 
-Rispondi alla domanda basandoti esclusivamente sui contenuti forniti sopra dal documento "{document_name}"."""
+Rispondi alla domanda basandoti sui contenuti forniti dal documento "{document_name}"."""
         
         return prompt
 
 class DocumentQA:
-    """Gestisce Question-Answering sui documenti"""
+    """Gestisce Question-Answering sui documenti - Ottimizzato per M1"""
     
     def __init__(self):
         self.ollama_client = OllamaClient()
@@ -141,30 +152,24 @@ class DocumentQA:
     ) -> Dict[str, str]:
         """
         Risponde a una domanda usando il contesto fornito
-        
-        Args:
-            question: Domanda dell'utente
-            contexts: Lista di contesti rilevanti dal documento
-            document_name: Nome del documento
-            chat_history: Cronologia chat precedente (opzionale)
-            
-        Returns:
-            Dict con risposta e metadati
         """
         try:
-            # Costruisci prompt
+            # Sistema prompt ottimizzato
             system_prompt = self.prompt_builder.build_system_prompt()
             
-            # Aggiungi contesto della chat history se disponibile
+            # Aggiungi contesto chat limitato per M1
             if chat_history and len(chat_history) > 0:
                 recent_context = "\n".join([
-                    f"DOMANDA PRECEDENTE: {msg['question']}\nRISPOSTA: {msg['answer']}"
-                    for msg in chat_history[-3:]  # Ultimi 3 messaggi
+                    f"Q: {msg['question']}\nR: {msg['answer'][:200]}..."  # Limita lunghezza
+                    for msg in chat_history[-2:]  # Solo ultimi 2 messaggi
                 ])
-                system_prompt += f"\n\nCONTESTO CONVERSAZIONE PRECEDENTE:\n{recent_context}"
+                system_prompt += f"\n\nCONTESTO PRECEDENTE:\n{recent_context}"
+            
+            # Limita contesti per prestazioni M1
+            limited_contexts = contexts[:3]  # Max 3 contesti
             
             user_prompt = self.prompt_builder.build_user_prompt(
-                question, contexts, document_name
+                question, limited_contexts, document_name
             )
             
             # Genera risposta
@@ -175,14 +180,14 @@ class DocumentQA:
             return {
                 "answer": response,
                 "model": self.ollama_client.model,
-                "context_count": len(contexts),
+                "context_count": len(limited_contexts),
                 "status": "success"
             }
             
         except Exception as e:
             logger.error(f"❌ Errore QA: {e}")
             return {
-                "answer": f"Spiacente, si è verificato un errore durante l'elaborazione della domanda: {str(e)}",
+                "answer": f"Errore durante l'elaborazione: {str(e)}",
                 "model": self.ollama_client.model,
                 "context_count": len(contexts),
                 "status": "error"
@@ -193,10 +198,10 @@ document_qa = DocumentQA()
 
 async def initialize_llm():
     """Inizializza il sistema LLM"""
-    logger.info("🤖 Inizializzazione sistema LLM...")
+    logger.info("🤖 Inizializzazione sistema LLM per M1...")
     success = await document_qa.initialize()
     if success:
-        logger.info("✅ Sistema LLM inizializzato con successo")
+        logger.info("✅ Sistema LLM inizializzato con successo su M1")
     else:
         logger.error("❌ Fallita inizializzazione sistema LLM")
     return success

@@ -23,6 +23,7 @@ import {
   Close as CloseIcon
 } from '@mui/icons-material';
 import { healthAPI } from '../../api/client';
+import ModelSelector from '../Models/ModelSelector';
 
 const Header = ({ 
   currentView, 
@@ -34,6 +35,7 @@ const Header = ({
   const [healthStatus, setHealthStatus] = useState(null);
   const [showHealthDetails, setShowHealthDetails] = useState(false);
   const [healthAnchorEl, setHealthAnchorEl] = useState(null);
+  const [currentModel, setCurrentModel] = useState('');
   const theme = useTheme();
 
   useEffect(() => {
@@ -60,6 +62,12 @@ const Header = ({
   const handleHealthClose = () => {
     setHealthAnchorEl(null);
     setShowHealthDetails(false);
+  };
+
+  const handleModelChange = (newModel) => {
+    setCurrentModel(newModel);
+    console.log('Modello cambiato nel header:', newModel);
+    // Qui potresti anche notificare altri componenti se necessario
   };
 
   const getStatusColor = () => {
@@ -155,7 +163,7 @@ const Header = ({
         </Box>
 
         {/* Status e impostazioni */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {/* Indicatore status */}
           <Button
             onClick={handleHealthClick}
@@ -201,77 +209,8 @@ const Header = ({
             {getStatusText()}
           </Button>
 
-          {/* Popover dettagli health */}
-          <Popover
-            open={showHealthDetails}
-            anchorEl={healthAnchorEl}
-            onClose={handleHealthClose}
-            anchorOrigin={{
-              vertical: 'bottom',
-              horizontal: 'right',
-            }}
-            transformOrigin={{
-              vertical: 'top',
-              horizontal: 'right',
-            }}
-          >
-            <Paper sx={{ width: 320, p: 2 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                <Typography variant="h6" component="h3">
-                  Status Sistema
-                </Typography>
-                <IconButton size="small" onClick={handleHealthClose}>
-                  <CloseIcon fontSize="small" />
-                </IconButton>
-              </Box>
-              
-              {healthStatus ? (
-                <List dense>
-                  <ListItem>
-                    <ListItemText
-                      primary="Status"
-                      secondary={
-                        <Chip
-                          label={healthStatus.status === 'healthy' ? 'Operativo' : 'Errore'}
-                          color={getStatusColor()}
-                          size="small"
-                        />
-                      }
-                    />
-                  </ListItem>
-                  {healthStatus.version && (
-                    <ListItem>
-                      <ListItemText
-                        primary="Versione"
-                        secondary={healthStatus.version}
-                      />
-                    </ListItem>
-                  )}
-                  {healthStatus.message && (
-                    <ListItem>
-                      <ListItemText
-                        primary="Messaggio"
-                        secondary={healthStatus.message}
-                      />
-                    </ListItem>
-                  )}
-                  <ListItem>
-                    <ListItemText
-                      primary="Backend"
-                      secondary="FastAPI + Ollama"
-                    />
-                  </ListItem>
-                </List>
-              ) : (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 2 }}>
-                  <CircularProgress size={20} />
-                  <Typography variant="body2" color="text.secondary">
-                    Controllo status in corso...
-                  </Typography>
-                </Box>
-              )}
-            </Paper>
-          </Popover>
+          {/* Selettore modello */}
+          <ModelSelector onModelChange={handleModelChange} />
 
           {/* Impostazioni */}
           <IconButton
@@ -281,6 +220,86 @@ const Header = ({
             <SettingsIcon />
           </IconButton>
         </Box>
+
+        {/* Popover dettagli health */}
+        <Popover
+          open={showHealthDetails}
+          anchorEl={healthAnchorEl}
+          onClose={handleHealthClose}
+          anchorOrigin={{
+            vertical: 'bottom',
+            horizontal: 'right',
+          }}
+          transformOrigin={{
+            vertical: 'top',
+            horizontal: 'right',
+          }}
+        >
+          <Paper sx={{ width: 320, p: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+              <Typography variant="h6" component="h3">
+                Status Sistema
+              </Typography>
+              <IconButton size="small" onClick={handleHealthClose}>
+                <CloseIcon fontSize="small" />
+              </IconButton>
+            </Box>
+            
+            {healthStatus ? (
+              <List dense>
+                <ListItem>
+                  <ListItemText
+                    primary="Status"
+                    secondary={
+                      <Chip
+                        label={healthStatus.status === 'healthy' ? 'Operativo' : 'Errore'}
+                        color={getStatusColor()}
+                        size="small"
+                      />
+                    }
+                  />
+                </ListItem>
+                {healthStatus.version && (
+                  <ListItem>
+                    <ListItemText
+                      primary="Versione"
+                      secondary={healthStatus.version}
+                    />
+                  </ListItem>
+                )}
+                {healthStatus.message && (
+                  <ListItem>
+                    <ListItemText
+                      primary="Messaggio"
+                      secondary={healthStatus.message}
+                    />
+                  </ListItem>
+                )}
+                <ListItem>
+                  <ListItemText
+                    primary="Backend"
+                    secondary="FastAPI + Ollama"
+                  />
+                </ListItem>
+                {currentModel && (
+                  <ListItem>
+                    <ListItemText
+                      primary="Modello AI"
+                      secondary={currentModel}
+                    />
+                  </ListItem>
+                )}
+              </List>
+            ) : (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 2 }}>
+                <CircularProgress size={20} />
+                <Typography variant="body2" color="text.secondary">
+                  Controllo status in corso...
+                </Typography>
+              </Box>
+            )}
+          </Paper>
+        </Popover>
       </Toolbar>
     </AppBar>
   );
