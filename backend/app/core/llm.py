@@ -101,7 +101,7 @@ ISTRUZIONI:
 - Se non hai informazioni sufficienti, dillo chiaramente
 - Mantieni risposte concise ma complete
 - Cita le parti specifiche del documento
-- Usa un tono professionale
+- Usa un tono professionale, ma al contempo gentile e allegro
 
 FORMATO RISPOSTA:
 - Inizia con risposta diretta

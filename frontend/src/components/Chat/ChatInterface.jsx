@@ -18,7 +18,10 @@ import {
   DialogContent,
   DialogActions,
   Avatar,
-  useTheme
+  useTheme,
+  Backdrop,
+  Modal,
+  Fade
 } from '@mui/material';
 import {
   Send as SendIcon,
@@ -31,7 +34,7 @@ import {
   SmartToy as BotIcon,
   Person as PersonIcon
 } from '@mui/icons-material';
-import { chatAPI, formatDate } from '../../api/client';
+import { chatAPI, formatDate, documentsAPI } from '../../api/client';
 
 const ChatInterface = ({ document, onBack }) => {
   const [messages, setMessages] = useState([]);
@@ -40,6 +43,7 @@ const ChatInterface = ({ document, onBack }) => {
   const [error, setError] = useState(null);
   const [showSources, setShowSources] = useState(true);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [sourceModal, setSourceModal] = useState({ open: false, source: null, content: null });
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const theme = useTheme();
@@ -138,6 +142,29 @@ const ChatInterface = ({ document, onBack }) => {
     navigator.clipboard.writeText(text).then(() => {
       // Feedback visivo opzionale
     });
+  };
+
+  const handleSourceClick = async (source) => {
+    try {
+      // Ottieni il contenuto completo del chunk
+      const response = await documentsAPI.getDocumentContent(document.id, source.chunk_id);
+      setSourceModal({
+        open: true,
+        source: source,
+        content: response.content || 'Contenuto non disponibile'
+      });
+    } catch (err) {
+      console.error('Errore nel caricamento del contenuto:', err);
+      setSourceModal({
+        open: true,
+        source: source,
+        content: 'Errore nel caricamento del contenuto'
+      });
+    }
+  };
+
+  const closeSourceModal = () => {
+    setSourceModal({ open: false, source: null, content: null });
   };
 
   if (!document) {
@@ -345,7 +372,17 @@ const ChatInterface = ({ document, onBack }) => {
                                   label={`Sezione ${source.chunk_id} - Similarità: ${(source.similarity_score * 100).toFixed(1)}%`}
                                   size="small"
                                   variant="outlined"
-                                  sx={{ fontSize: '0.75rem' }}
+                                  onClick={() => handleSourceClick(source)}
+                                  sx={{ 
+                                    fontSize: '0.75rem',
+                                    cursor: 'pointer',
+                                    '&:hover': {
+                                      bgcolor: 'primary.50',
+                                      borderColor: 'primary.main',
+                                      transform: 'scale(1.02)',
+                                    },
+                                    transition: 'all 0.2s ease'
+                                  }}
                                 />
                               ))}
                             </Box>
@@ -491,6 +528,113 @@ const ChatInterface = ({ document, onBack }) => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Modal per visualizzare il contenuto delle fonti */}
+      <Modal
+        open={sourceModal.open}
+        onClose={closeSourceModal}
+        closeAfterTransition
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          p: 2
+        }}
+        BackdropComponent={({ children, ...props }) => (
+          <Backdrop
+            {...props}
+            sx={{
+              backdropFilter: 'blur(8px)',
+              backgroundColor: 'rgba(0, 0, 0, 0.3)'
+            }}
+          >
+            {children}
+          </Backdrop>
+        )}
+        BackdropProps={{
+          timeout: 300
+        }}
+      >
+        <Fade in={sourceModal.open} timeout={300}>
+          <Box
+            sx={{
+              maxWidth: '80vw',
+              maxHeight: '80vh',
+              width: 'auto',
+              bgcolor: 'background.paper',
+              borderRadius: 0,
+              border: 'none',
+              boxShadow: 'none',
+              outline: 'none',
+              overflow: 'auto',
+              p: 4,
+              backdropFilter: 'none', // Assicura che non ci sia blur sul contenuto
+              filter: 'none' // Rimuove qualsiasi filtro applicato
+            }}
+          >
+            {sourceModal.source && (
+              <>
+                <Box sx={{ mb: 3, textAlign: 'center' }}>
+                  <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                    Sezione {sourceModal.source.chunk_id}
+                  </Typography>
+                  <Chip
+                    label={`Similarità: ${(sourceModal.source.similarity_score * 100).toFixed(1)}%`}
+                    color="primary"
+                    size="small"
+                    sx={{ mb: 2 }}
+                  />
+                  <Typography variant="body2" color="text.secondary">
+                    Contenuto della sezione dal documento "{document?.filename}"
+                  </Typography>
+                </Box>
+                
+                <Divider sx={{ mb: 3 }} />
+                
+                <Box
+                  sx={{
+                    maxHeight: '50vh',
+                    overflow: 'auto',
+                    p: 3,
+                    bgcolor: 'grey.50',
+                    borderRadius: 1,
+                    border: '1px solid',
+                    borderColor: 'grey.200'
+                  }}
+                >
+                  <Typography 
+                    variant="body1" 
+                    component="div"
+                    sx={{ 
+                      whiteSpace: 'pre-wrap',
+                      lineHeight: 1.6,
+                      fontFamily: 'inherit'
+                    }}
+                  >
+                    {sourceModal.content}
+                  </Typography>
+                </Box>
+
+                <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center', gap: 2 }}>
+                  <Button
+                    onClick={() => copyToClipboard(sourceModal.content)}
+                    variant="outlined"
+                    startIcon={<CopyIcon />}
+                  >
+                    Copia contenuto
+                  </Button>
+                  <Button
+                    onClick={closeSourceModal}
+                    variant="contained"
+                  >
+                    Chiudi
+                  </Button>
+                </Box>
+              </>
+            )}
+          </Box>
+        </Fade>
+      </Modal>
     </Box>
   );
 };
