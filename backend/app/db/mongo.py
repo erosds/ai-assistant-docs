@@ -98,17 +98,18 @@ class DocumentManager:
         """Aggiorna statistiche documento"""
         from bson import ObjectId
         update_data = {}
-        
+
         if chunk_count is not None:
-            update_data["chunk_count"] = chunk_count
+            update_data.setdefault("$set", {})["chunk_count"] = chunk_count
         if chat_count is not None:
-            update_data["$inc"] = {"chat_count": 1}
-        
+            update_data.setdefault("$inc", {})["chat_count"] = 1
+
         if update_data:
             await mongodb.database.documents.update_one(
                 {"_id": ObjectId(document_id)},
-                update_data if chat_count is None else {"$inc": {"chat_count": 1}, **{k: v for k, v in update_data.items() if k != "$inc"}}
+                update_data
             )
+
     
     @staticmethod
     async def delete_document(document_id: str) -> bool:

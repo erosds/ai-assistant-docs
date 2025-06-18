@@ -35,7 +35,7 @@ import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon
 } from '@mui/icons-material';
-import { documentsAPI, formatFileSize, formatDate } from '../../api/client';
+import { documentsAPI, formatFileSize, formatDate, uploadAPI } from '../../api/client';
 
 const DocumentsList = ({ onSelectDocument, onDeleteDocument, refreshTrigger }) => {
   const [documents, setDocuments] = useState([]);
@@ -69,7 +69,7 @@ const DocumentsList = ({ onSelectDocument, onDeleteDocument, refreshTrigger }) =
   const handleDelete = async (documentId) => {
     try {
       setDeleting(documentId);
-      await documentsAPI.deleteDocument(documentId);
+      await uploadAPI.deleteDocument(documentId);
       
       // Rimuovi dalla lista locale
       setDocuments(docs => docs.filter(doc => doc.id !== documentId));
