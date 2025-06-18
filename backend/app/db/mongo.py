@@ -5,6 +5,7 @@ import asyncio
 from datetime import datetime
 from typing import Optional, Dict, List
 import logging
+from bson import ObjectId
 
 logger = logging.getLogger(__name__)
 
@@ -75,10 +76,23 @@ class DocumentManager:
     @staticmethod
     async def get_document(document_id: str) -> Optional[Dict]:
         """Recupera un documento per ID"""
-        from bson import ObjectId
         try:
-            return await mongodb.database.documents.find_one({"_id": ObjectId(document_id)})
-        except:
+            # Prova prima come ObjectId
+            try:
+                obj_id = ObjectId(document_id)
+                document = await mongodb.database.documents.find_one({"_id": obj_id})
+            except:
+                # Se fallisce, prova come stringa
+                document = await mongodb.database.documents.find_one({"_id": document_id})
+            
+            if document:
+                # Assicurati che _id sia sempre una stringa nel risultato
+                document["_id"] = str(document["_id"])
+            
+            return document
+            
+        except Exception as e:
+            logger.error(f"Errore get_document per ID {document_id}: {e}")
             return None
     
     @staticmethod
@@ -96,33 +110,51 @@ class DocumentManager:
     @staticmethod
     async def update_document_stats(document_id: str, chunk_count: int = None, chat_count: int = None):
         """Aggiorna statistiche documento"""
-        from bson import ObjectId
-        update_data = {}
+        try:
+            update_data = {}
 
-        if chunk_count is not None:
-            update_data.setdefault("$set", {})["chunk_count"] = chunk_count
-        if chat_count is not None:
-            update_data.setdefault("$inc", {})["chat_count"] = 1
+            if chunk_count is not None:
+                update_data.setdefault("$set", {})["chunk_count"] = chunk_count
+            if chat_count is not None:
+                update_data.setdefault("$inc", {})["chat_count"] = 1
 
-        if update_data:
-            await mongodb.database.documents.update_one(
-                {"_id": ObjectId(document_id)},
-                update_data
-            )
+            if update_data:
+                # Prova prima come ObjectId
+                try:
+                    obj_id = ObjectId(document_id)
+                    await mongodb.database.documents.update_one(
+                        {"_id": obj_id},
+                        update_data
+                    )
+                except:
+                    # Se fallisce, prova come stringa
+                    await mongodb.database.documents.update_one(
+                        {"_id": document_id},
+                        update_data
+                    )
+                    
+        except Exception as e:
+            logger.error(f"Errore update_document_stats per ID {document_id}: {e}")
 
-    
     @staticmethod
     async def delete_document(document_id: str) -> bool:
         """Elimina un documento"""
-        from bson import ObjectId
         try:
-            result = await mongodb.database.documents.delete_one({"_id": ObjectId(document_id)})
+            # Prova prima come ObjectId
+            try:
+                obj_id = ObjectId(document_id)
+                result = await mongodb.database.documents.delete_one({"_id": obj_id})
+            except:
+                # Se fallisce, prova come stringa
+                result = await mongodb.database.documents.delete_one({"_id": document_id})
             
             # Elimina anche la chat history
             await mongodb.database.chat_history.delete_many({"document_id": document_id})
             
             return result.deleted_count > 0
-        except:
+            
+        except Exception as e:
+            logger.error(f"Errore delete_document per ID {document_id}: {e}")
             return False
 
 class ChatManager:
@@ -132,7 +164,7 @@ class ChatManager:
     async def save_chat_message(document_id: str, question: str, answer: str, sources: List[str] = None):
         """Salva un messaggio di chat"""
         message = {
-            "document_id": document_id,
+            "document_id": document_id,  # Salva sempre come stringa
             "question": question,
             "answer": answer,
             "sources": sources or [],
@@ -148,7 +180,7 @@ class ChatManager:
     async def get_chat_history(document_id: str, limit: int = 50) -> List[Dict]:
         """Recupera cronologia chat per un documento"""
         cursor = mongodb.database.chat_history.find(
-            {"document_id": document_id}
+            {"document_id": document_id}  # Cerca sempre come stringa
         ).sort("timestamp", -1).limit(limit)
         
         messages = await cursor.to_list(length=limit)

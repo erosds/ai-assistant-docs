@@ -15,14 +15,31 @@ logger = logging.getLogger(__name__)
 class EmbeddingService:
     """Servizio per generare embeddings usando sentence-transformers"""
     
+    _instance = None
+    _initialized = False
+    
+    def __new__(cls, model_name: str = None):
+        if cls._instance is None:
+            cls._instance = super(EmbeddingService, cls).__new__(cls)
+        return cls._instance
+    
     def __init__(self, model_name: str = None):
+        # Evita re-inizializzazione se già fatto
+        if self._initialized:
+            return
+            
         self.model_name = model_name or settings.embedding_model
         self.model = None
         self.embedding_dim = None
         self._executor = ThreadPoolExecutor(max_workers=2)
+        self._initialized = False
     
     async def initialize(self) -> bool:
         """Inizializza il modello di embedding"""
+        if self._initialized and self.model is not None:
+            logger.info(f"✅ Modello già inizializzato: {self.model_name}")
+            return True
+            
         try:
             logger.info(f"🤖 Caricamento modello embedding: {self.model_name}")
             
@@ -37,12 +54,22 @@ class EmbeddingService:
             )
             self.embedding_dim = test_embedding.shape[1]
             
+            self._initialized = True
             logger.info(f"✅ Modello caricato: dimensione embedding = {self.embedding_dim}")
             return True
             
         except Exception as e:
             logger.error(f"❌ Errore caricamento modello embedding: {e}")
+            self._initialized = False
             return False
+    
+    async def ensure_initialized(self):
+        """Assicura che il modello sia inizializzato"""
+        if not self._initialized or self.model is None:
+            await self.initialize()
+        
+        if not self._initialized or self.model is None:
+            raise Exception("Modello non inizializzato")
     
     async def encode_texts(self, texts: List[str], batch_size: int = 32) -> np.ndarray:
         """
@@ -55,8 +82,7 @@ class EmbeddingService:
         Returns:
             Array numpy con gli embeddings
         """
-        if not self.model:
-            raise Exception("Modello non inizializzato")
+        await self.ensure_initialized()
         
         try:
             start_time = time.time()
@@ -87,19 +113,46 @@ class EmbeddingService:
     
     def get_embedding_dimension(self) -> int:
         """Ottieni dimensione degli embeddings"""
+        if not self._initialized:
+            raise Exception("Modello non inizializzato")
         return self.embedding_dim
 
 class DocumentIndexer:
     """Servizio per indicizzare documenti completi"""
     
+    _instance = None
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(DocumentIndexer, cls).__new__(cls)
+        return cls._instance
+    
     def __init__(self):
+        # Evita re-inizializzazione se già fatto
+        if hasattr(self, '_initialized') and self._initialized:
+            return
+            
         self.embedding_service = EmbeddingService()
         self.vector_store_manager = get_vector_store_manager()
         self.text_chunker = get_text_chunker()
+        self._initialized = False
     
     async def initialize(self) -> bool:
         """Inizializza il servizio di indicizzazione"""
-        return await self.embedding_service.initialize()
+        if self._initialized:
+            return True
+            
+        success = await self.embedding_service.initialize()
+        self._initialized = success
+        return success
+    
+    async def ensure_initialized(self):
+        """Assicura che il servizio sia inizializzato"""
+        if not self._initialized:
+            await self.initialize()
+        
+        if not self._initialized:
+            raise Exception("Servizio di indicizzazione non inizializzato")
     
     async def index_document(self, document_id: str, text: str, document_name: str) -> Dict[str, any]:
         """
@@ -114,6 +167,8 @@ class DocumentIndexer:
             Dict con risultati dell'indicizzazione
         """
         try:
+            await self.ensure_initialized()
+            
             start_time = time.time()
             logger.info(f"🔄 Inizio indicizzazione documento: {document_name}")
             
@@ -191,6 +246,8 @@ class DocumentIndexer:
             Lista di chunk simili con score
         """
         try:
+            await self.ensure_initialized()
+            
             # 1. Genera embedding della query
             query_embedding = await self.embedding_service.encode_single_text(query)
             
@@ -227,7 +284,13 @@ class DocumentIndexer:
     
     async def get_index_stats(self, document_id: str) -> Dict:
         """Ottieni statistiche dell'indice per un documento"""
-        return self.vector_store_manager.get_store_stats(document_id)
+        try:
+            # Assicurati che sia inizializzato per ottenere la dimensione corretta
+            await self.ensure_initialized()
+            return self.vector_store_manager.get_store_stats(document_id)
+        except Exception as e:
+            logger.error(f"❌ Errore get_index_stats: {e}")
+            return {"status": "error", "error": str(e)}
     
     async def list_indexed_documents(self) -> List[str]:
         """Lista documenti indicizzati"""
@@ -236,8 +299,19 @@ class DocumentIndexer:
 class QueryProcessor:
     """Processa query e prepara contesto per LLM"""
     
+    _instance = None
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(QueryProcessor, cls).__new__(cls)
+        return cls._instance
+    
     def __init__(self):
+        if hasattr(self, '_initialized') and self._initialized:
+            return
+            
         self.document_indexer = DocumentIndexer()
+        self._initialized = True
     
     async def process_query(self, document_id: str, query: str, 
                            max_chunks: int = 5, min_score: float = 0.1) -> Dict[str, any]:
@@ -254,6 +328,9 @@ class QueryProcessor:
             Dict con contesto e metadati
         """
         try:
+            # Assicura che il document indexer sia inizializzato
+            await self.document_indexer.ensure_initialized()
+            
             # Cerca chunk rilevanti
             similar_chunks = await self.document_indexer.search_similar_chunks(
                 document_id=document_id,
@@ -300,24 +377,40 @@ class QueryProcessor:
                 'sources': []
             }
 
-# Istanze globali
-document_indexer = DocumentIndexer()
-query_processor = QueryProcessor()
+# Istanze globali singleton
+_document_indexer = None
+_query_processor = None
 
 async def initialize_indexing_service():
     """Inizializza il servizio di indicizzazione"""
+    global _document_indexer, _query_processor
+    
     logger.info("🔧 Inizializzazione servizio indicizzazione...")
-    success = await document_indexer.initialize()
+    
+    # Crea le istanze singleton
+    _document_indexer = DocumentIndexer()
+    _query_processor = QueryProcessor()
+    
+    # Inizializza il servizio
+    success = await _document_indexer.initialize()
+    
     if success:
         logger.info("✅ Servizio indicizzazione inizializzato")
     else:
         logger.error("❌ Fallita inizializzazione servizio indicizzazione")
+    
     return success
 
 def get_document_indexer() -> DocumentIndexer:
     """Ottieni istanza DocumentIndexer"""
-    return document_indexer
+    global _document_indexer
+    if _document_indexer is None:
+        _document_indexer = DocumentIndexer()
+    return _document_indexer
 
 def get_query_processor() -> QueryProcessor:
     """Ottieni istanza QueryProcessor"""
-    return query_processor
+    global _query_processor
+    if _query_processor is None:
+        _query_processor = QueryProcessor()
+    return _query_processor
