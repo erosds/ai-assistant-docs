@@ -1,13 +1,36 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  PaperAirplaneIcon, 
-  DocumentTextIcon,
-  ArrowLeftIcon,
-  TrashIcon,
-  ArrowPathIcon,
-  InformationCircleIcon,
-  ClipboardDocumentIcon
-} from '@heroicons/react/24/outline';
+import {
+  Box,
+  Paper,
+  Typography,
+  TextField,
+  Button,
+  IconButton,
+  Chip,
+  Alert,
+  CircularProgress,
+  Divider,
+  Card,
+  CardContent,
+  Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Avatar,
+  useTheme
+} from '@mui/material';
+import {
+  Send as SendIcon,
+  Description as DocumentIcon,
+  ArrowBack as ArrowBackIcon,
+  Delete as DeleteIcon,
+  Refresh as RefreshIcon,
+  Info as InfoIcon,
+  ContentCopy as CopyIcon,
+  SmartToy as BotIcon,
+  Person as PersonIcon
+} from '@mui/icons-material';
 import { chatAPI, formatDate } from '../../api/client';
 
 const ChatInterface = ({ document, onBack }) => {
@@ -16,8 +39,10 @@ const ChatInterface = ({ document, onBack }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [showSources, setShowSources] = useState(true);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const theme = useTheme();
 
   // Carica cronologia chat
   useEffect(() => {
@@ -88,23 +113,22 @@ const ChatInterface = ({ document, onBack }) => {
         setMessages(prev => [...prev.slice(0, -1), userMessage, aiMessage]);
       } else {
         setError(response.error || 'Errore nella risposta');
-        setMessages(prev => prev.slice(0, -1)); // Rimuovi messaggio utente se fallita
+        setMessages(prev => prev.slice(0, -1));
       }
 
     } catch (err) {
       setError(err.message);
-      setMessages(prev => prev.slice(0, -1)); // Rimuovi messaggio utente se fallita
+      setMessages(prev => prev.slice(0, -1));
     } finally {
       setLoading(false);
     }
   };
 
   const clearHistory = async () => {
-    if (!confirm('Sei sicuro di voler cancellare tutta la cronologia chat?')) return;
-
     try {
       await chatAPI.clearChatHistory(document.id);
       setMessages([]);
+      setShowDeleteDialog(false);
     } catch (err) {
       setError('Errore nella cancellazione della cronologia');
     }
@@ -118,247 +142,356 @@ const ChatInterface = ({ document, onBack }) => {
 
   if (!document) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <DocumentTextIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
+      <Box sx={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        height: '100%',
+        textAlign: 'center'
+      }}>
+        <Box>
+          <DocumentIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
+          <Typography variant="h6" gutterBottom>
             Seleziona un documento
-          </h3>
-          <p className="text-gray-600">
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
             Scegli un documento dalla lista per iniziare a chattare
-          </p>
-        </div>
-      </div>
+          </Typography>
+        </Box>
+      </Box>
     );
   }
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white">
-        <div className="flex items-center space-x-3">
-          <button
+      <Box sx={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'space-between', 
+        p: 2, 
+        borderBottom: 1, 
+        borderColor: 'divider' 
+      }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 0 }}>
+          <IconButton 
             onClick={onBack}
-            className="p-2 text-gray-500 hover:text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+            sx={{ color: 'text.secondary' }}
           >
-            <ArrowLeftIcon className="w-5 h-5" />
-          </button>
+            <ArrowBackIcon />
+          </IconButton>
           
-          <div className="flex items-center space-x-3">
-            <DocumentTextIcon className="w-6 h-6 text-primary-600" />
-            <div>
-              <h2 className="font-semibold text-gray-900 truncate max-w-xs sm:max-w-md">
-                {document.filename}
-              </h2>
-              <p className="text-sm text-gray-500">
-                {document.chunk_count} sezioni • {document.chat_count} chat
-              </p>
-            </div>
-          </div>
-        </div>
+          <DocumentIcon sx={{ color: 'primary.main', fontSize: 32 }} />
+          
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="h6" noWrap sx={{ fontWeight: 600 }}>
+              {document.filename}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {document.chunk_count} sezioni • {document.chat_count} chat
+            </Typography>
+          </Box>
+        </Box>
 
-        <div className="flex items-center space-x-2">
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {/* Toggle sources */}
-          <button
+          <Chip
+            icon={<InfoIcon />}
+            label="Fonti"
             onClick={() => setShowSources(!showSources)}
-            className={`px-3 py-1 text-sm rounded-lg transition-colors ${
-              showSources 
-                ? 'bg-primary-100 text-primary-700' 
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            <InformationCircleIcon className="w-4 h-4 inline mr-1" />
-            Fonti
-          </button>
+            color={showSources ? 'primary' : 'default'}
+            variant={showSources ? 'filled' : 'outlined'}
+            size="small"
+          />
 
           {/* Clear history */}
           {messages.length > 0 && (
-            <button
-              onClick={clearHistory}
-              className="p-2 text-gray-500 hover:text-red-600 rounded-lg hover:bg-gray-100 transition-colors"
-              title="Cancella cronologia"
-            >
-              <TrashIcon className="w-4 h-4" />
-            </button>
+            <Tooltip title="Cancella cronologia">
+              <IconButton
+                onClick={() => setShowDeleteDialog(true)}
+                size="small"
+                sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}
+              >
+                <DeleteIcon />
+              </IconButton>
+            </Tooltip>
           )}
-        </div>
-      </div>
+        </Box>
+      </Box>
 
       {/* Area messaggi */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-thin">
+      <Box sx={{ 
+        flexGrow: 1, 
+        overflow: 'auto', 
+        p: 2,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 2
+      }}>
         {messages.length === 0 && !loading && (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <DocumentTextIcon className="w-8 h-8 text-primary-600" />
-            </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
+          <Box sx={{ textAlign: 'center', py: 6 }}>
+            <Box sx={{
+              width: 80,
+              height: 80,
+              bgcolor: 'primary.50',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              mx: 'auto',
+              mb: 3
+            }}>
+              <DocumentIcon sx={{ fontSize: 40, color: 'primary.main' }} />
+            </Box>
+            <Typography variant="h6" gutterBottom>
               Inizia una conversazione
-            </h3>
-            <p className="text-gray-600 max-w-md mx-auto">
+            </Typography>
+            <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 500, mx: 'auto', mb: 3 }}>
               Fai una domanda sul documento "{document.filename}" e ricevi risposte basate sul suo contenuto.
-            </p>
-            <div className="mt-6 space-y-2 text-sm text-gray-500">
-              <p>💡 Esempi di domande:</p>
-              <div className="space-y-1">
-                <p>"Qual è il tema principale del documento?"</p>
-                <p>"Riassumi i punti chiave"</p>
-                <p>"Cerca informazioni su..."</p>
-              </div>
-            </div>
-          </div>
+            </Typography>
+            <Box sx={{ mt: 3, textAlign: 'left', maxWidth: 400, mx: 'auto' }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                💡 Esempi di domande:
+              </Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                <Typography variant="body2" color="text.secondary">
+                  "Qual è il tema principale del documento?"
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  "Riassumi i punti chiave"
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  "Cerca informazioni su..."
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
         )}
 
         {messages.map((message, index) => (
-          <div key={index} className="space-y-4">
+          <Box key={index} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {/* Messaggio utente */}
-            <div className="flex justify-end">
-              <div className="chat-bubble-user">
-                <p className="text-white">{message.question}</p>
-                <p className="text-xs text-blue-100 mt-1">
-                  {formatDate(message.timestamp)}
-                </p>
-              </div>
-            </div>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Card sx={{ 
+                maxWidth: '70%', 
+                bgcolor: 'primary.main',
+                color: 'primary.contrastText'
+              }}>
+                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
+                    <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.dark' }}>
+                      <PersonIcon sx={{ fontSize: 18 }} />
+                    </Avatar>
+                    <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+                      <Typography variant="body1" sx={{ color: 'inherit', wordBreak: 'break-word' }}>
+                        {message.question}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: 'primary.100', mt: 1, display: 'block' }}>
+                        {formatDate(message.timestamp)}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Box>
 
             {/* Risposta AI */}
             {message.answer && (
-              <div className="flex justify-start">
-                <div className="chat-bubble-ai max-w-3xl">
-                  <div className="prose prose-sm max-w-none">
-                    <p className="whitespace-pre-wrap text-gray-900">
-                      {message.answer}
-                    </p>
-                  </div>
-
-                  {/* Sources */}
-                  {showSources && message.sources && message.sources.length > 0 && (
-                    <div className="mt-4 pt-3 border-t border-gray-200">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-xs font-medium text-gray-700 uppercase tracking-wide">
-                          Fonti utilizzate
-                        </h4>
-                        <button
-                          onClick={() => copyToClipboard(message.answer)}
-                          className="p-1 text-gray-400 hover:text-gray-600 rounded"
-                          title="Copia risposta"
+              <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
+                <Card sx={{ maxWidth: '80%', bgcolor: 'background.paper' }}>
+                  <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
+                      <Avatar sx={{ width: 32, height: 32, bgcolor: 'secondary.main' }}>
+                        <BotIcon sx={{ fontSize: 18 }} />
+                      </Avatar>
+                      <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+                        <Typography 
+                          variant="body1" 
+                          sx={{ 
+                            whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-word',
+                            lineHeight: 1.6
+                          }}
                         >
-                          <ClipboardDocumentIcon className="w-4 h-4" />
-                        </button>
-                      </div>
-                      <div className="space-y-2">
-                        {message.sources.map((source, idx) => (
-                          <div key={idx} className="flex items-center justify-between text-xs bg-gray-50 rounded p-2">
-                            <span className="text-gray-600">
-                              Sezione {source.chunk_id}
-                            </span>
-                            <span className="text-gray-500">
-                              Similarità: {(source.similarity_score * 100).toFixed(1)}%
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                          {message.answer}
+                        </Typography>
 
-                  {/* Metadata */}
-                  {message.metadata && (
-                    <div className="mt-2 text-xs text-gray-500">
-                      Risposta generata con {message.metadata.chunks_used} sezioni
-                      {message.metadata.model && ` • ${message.metadata.model}`}
-                    </div>
-                  )}
+                        {/* Sources */}
+                        {showSources && message.sources && message.sources.length > 0 && (
+                          <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                              <Typography variant="caption" sx={{ 
+                                fontWeight: 'medium', 
+                                color: 'text.secondary',
+                                textTransform: 'uppercase',
+                                letterSpacing: 0.5
+                              }}>
+                                Fonti utilizzate
+                              </Typography>
+                              <Tooltip title="Copia risposta">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => copyToClipboard(message.answer)}
+                                  sx={{ color: 'text.secondary' }}
+                                >
+                                  <CopyIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                              {message.sources.map((source, idx) => (
+                                <Chip
+                                  key={idx}
+                                  label={`Sezione ${source.chunk_id} - Similarità: ${(source.similarity_score * 100).toFixed(1)}%`}
+                                  size="small"
+                                  variant="outlined"
+                                  sx={{ fontSize: '0.75rem' }}
+                                />
+                              ))}
+                            </Box>
+                          </Box>
+                        )}
 
-                  <p className="text-xs text-gray-500 mt-2">
-                    {formatDate(message.timestamp)}
-                  </p>
-                </div>
-              </div>
+                        {/* Metadata */}
+                        {message.metadata && (
+                          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                            Risposta generata con {message.metadata.chunks_used} sezioni
+                            {message.metadata.model && ` • ${message.metadata.model}`}
+                          </Typography>
+                        )}
+
+                        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                          {formatDate(message.timestamp)}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Box>
             )}
-          </div>
+          </Box>
         ))}
 
         {/* Indicatore di caricamento */}
         {loading && (
-          <div className="flex justify-start">
-            <div className="chat-bubble-ai">
-              <div className="flex items-center space-x-2">
-                <div className="loading-dots">
-                  <span style={{'--i': 0}}></span>
-                  <span style={{'--i': 1}}></span>
-                  <span style={{'--i': 2}}></span>
-                </div>
-                <span className="text-gray-600">L'AI sta pensando...</span>
-              </div>
-            </div>
-          </div>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
+            <Card sx={{ bgcolor: 'background.paper' }}>
+              <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Avatar sx={{ width: 32, height: 32, bgcolor: 'secondary.main' }}>
+                    <BotIcon sx={{ fontSize: 18 }} />
+                  </Avatar>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Box className="loading-dots">
+                      <span style={{'--i': 0}}></span>
+                      <span style={{'--i': 1}}></span>
+                      <span style={{'--i': 2}}></span>
+                    </Box>
+                    <Typography variant="body2" color="text.secondary">
+                      L'AI sta pensando...
+                    </Typography>
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
+          </Box>
         )}
 
         {/* Errore */}
         {error && (
-          <div className="flex justify-center">
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-              <p className="text-sm">{error}</p>
-              <button
-                onClick={() => setError(null)}
-                className="text-xs text-red-600 hover:text-red-800 mt-1"
-              >
-                Chiudi
-              </button>
-            </div>
-          </div>
+          <Alert 
+            severity="error" 
+            onClose={() => setError(null)}
+            sx={{ mx: 'auto', maxWidth: 500 }}
+          >
+            {error}
+          </Alert>
         )}
 
         <div ref={messagesEndRef} />
-      </div>
+      </Box>
 
       {/* Form input */}
-      <div className="border-t border-gray-200 p-4 bg-white">
-        <form onSubmit={handleSubmit} className="flex items-end space-x-3">
-          <div className="flex-1">
-            <textarea
-              ref={inputRef}
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSubmit(e);
-                }
-              }}
-              placeholder="Fai una domanda sul documento..."
-              rows={1}
-              className="w-full resize-none border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
-              style={{
-                minHeight: '44px',
-                maxHeight: '120px',
-              }}
-              disabled={loading}
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Premi Invio per inviare, Shift+Invio per andare a capo
-            </p>
-          </div>
-          
-          <button
-            type="submit"
-            disabled={!inputValue.trim() || loading}
-            className={`
-              p-3 rounded-lg transition-all duration-200 flex-shrink-0
-              ${inputValue.trim() && !loading
-                ? 'bg-primary-600 hover:bg-primary-700 text-white shadow-sm hover:shadow-md' 
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+      <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
+        <Box 
+          component="form" 
+          onSubmit={handleSubmit}
+          sx={{ display: 'flex', alignItems: 'flex-end', gap: 1 }}
+        >
+          <TextField
+            ref={inputRef}
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit(e);
               }
-            `}
+            }}
+            placeholder="Fai una domanda sul documento..."
+            multiline
+            maxRows={4}
+            fullWidth
+            disabled={loading}
+            helperText="Premi Invio per inviare, Shift+Invio per andare a capo"
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 2,
+              },
+            }}
+          />
+          
+          <Button
+            type="submit"
+            variant="contained"
+            disabled={!inputValue.trim() || loading}
+            sx={{
+              minWidth: 56,
+              height: 56,
+              borderRadius: 2,
+              alignSelf: 'flex-end',
+              mb: 2.5, // Align with text field
+            }}
           >
             {loading ? (
-              <ArrowPathIcon className="w-5 h-5 animate-spin" />
+              <CircularProgress size={24} color="inherit" />
             ) : (
-              <PaperAirplaneIcon className="w-5 h-5" />
+              <SendIcon />
             )}
-          </button>
-        </form>
-      </div>
-    </div>
+          </Button>
+        </Box>
+      </Box>
+
+      {/* Dialog conferma eliminazione */}
+      <Dialog
+        open={showDeleteDialog}
+        onClose={() => setShowDeleteDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          Conferma eliminazione cronologia
+        </DialogTitle>
+        <DialogContent>
+          <Typography>
+            Sei sicuro di voler cancellare tutta la cronologia chat? 
+            Questa azione non può essere annullata.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowDeleteDialog(false)}>
+            Annulla
+          </Button>
+          <Button 
+            onClick={clearHistory}
+            color="error"
+            variant="contained"
+          >
+            Elimina
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
 };
 

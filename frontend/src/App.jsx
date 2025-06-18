@@ -1,15 +1,42 @@
 import React, { useState, useEffect } from 'react';
+import {
+  Box,
+  Container,
+  Drawer,
+  AppBar,
+  Typography,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  ListItemButton,
+  Paper,
+  Divider,
+  Badge,
+  useTheme,
+  useMediaQuery
+} from '@mui/material';
+import {
+  Description as DocumentIcon,
+  Chat as ChatIcon
+} from '@mui/icons-material';
 import Header from './components/Layout/Header';
 import UploadZone from './components/Upload/UploadZone';
 import DocumentsList from './components/Documents/DocumentsList';
 import ChatInterface from './components/Chat/ChatInterface';
 import { documentsAPI } from './api/client';
 
+const DRAWER_WIDTH = 280;
+
 function App() {
   const [currentView, setCurrentView] = useState('documents');
   const [selectedDocument, setSelectedDocument] = useState(null);
   const [documentsCount, setDocumentsCount] = useState(0);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   useEffect(() => {
     const loadDocumentsCount = async () => {
@@ -25,12 +52,14 @@ function App() {
   }, [refreshTrigger]);
 
   const handleViewChange = (view) => {
-    // Se si passa alla chat e non c'è documento selezionato, torna ai documenti
     if (view === 'chat' && !selectedDocument) {
       setCurrentView('documents');
       return;
     }
     setCurrentView(view);
+    if (isMobile) {
+      setMobileOpen(false);
+    }
   };
 
   const handleSelectDocument = (document) => {
@@ -55,85 +84,187 @@ function App() {
     setCurrentView('documents');
   };
 
-  return (
-    <div className="flex min-h-screen bg-gray-50">
-      {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
-        <div className="flex items-center justify-center h-16 border-b border-gray-200 font-bold text-xl text-indigo-700">
+  const handleDrawerToggle = () => {
+    setMobileOpen(!mobileOpen);
+  };
+
+  const sidebarContent = (
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* Logo */}
+      <Box sx={{ p: 3, textAlign: 'center', borderBottom: 1, borderColor: 'divider' }}>
+        <Typography variant="h5" component="div" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
           AI Docs
-        </div>
+        </Typography>
+      </Box>
 
-        <nav className="flex flex-col flex-grow p-4 space-y-2">
-          <button
+      {/* Navigation */}
+      <List sx={{ flexGrow: 1, px: 2, py: 1 }}>
+        <ListItem disablePadding>
+          <ListItemButton
             onClick={() => handleViewChange('documents')}
-            className={`text-left px-4 py-2 rounded-md hover:bg-indigo-100 transition ${
-              currentView === 'documents' ? 'bg-indigo-200 font-semibold' : ''
-            }`}
+            selected={currentView === 'documents'}
+            sx={{
+              borderRadius: 2,
+              mb: 1,
+              '&.Mui-selected': {
+                bgcolor: 'primary.50',
+                color: 'primary.main',
+                '&:hover': {
+                  bgcolor: 'primary.100',
+                },
+              },
+            }}
           >
-            Documenti ({documentsCount})
-          </button>
+            <ListItemIcon sx={{ color: currentView === 'documents' ? 'primary.main' : 'inherit' }}>
+              <DocumentIcon />
+            </ListItemIcon>
+            <ListItemText 
+              primary={
+                <Box display="flex" alignItems="center" gap={1}>
+                  <span>Documenti</span>
+                  {documentsCount > 0 && (
+                    <Badge badgeContent={documentsCount} color="primary" />
+                  )}
+                </Box>
+              }
+            />
+          </ListItemButton>
+        </ListItem>
 
-          <button
+        <ListItem disablePadding>
+          <ListItemButton
             onClick={() => handleViewChange('chat')}
             disabled={!selectedDocument}
-            className={`text-left px-4 py-2 rounded-md hover:bg-indigo-100 transition ${
-              currentView === 'chat' ? 'bg-indigo-200 font-semibold' : ''
-            } ${!selectedDocument ? 'opacity-50 cursor-not-allowed' : ''}`}
+            selected={currentView === 'chat'}
+            sx={{
+              borderRadius: 2,
+              '&.Mui-selected': {
+                bgcolor: 'primary.50',
+                color: 'primary.main',
+                '&:hover': {
+                  bgcolor: 'primary.100',
+                },
+              },
+            }}
           >
-            Chat
-          </button>
-        </nav>
+            <ListItemIcon sx={{ color: currentView === 'chat' ? 'primary.main' : 'inherit' }}>
+              <ChatIcon />
+            </ListItemIcon>
+            <ListItemText primary="Chat" />
+          </ListItemButton>
+        </ListItem>
+      </List>
 
-        <footer className="p-4 text-xs text-gray-500 border-t border-gray-200">
-          <div>Powered by FastAPI + Ollama</div>
-        </footer>
-      </aside>
+      {/* Footer */}
+      <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
+        <Typography variant="caption" color="text.secondary">
+          Powered by FastAPI + Ollama
+        </Typography>
+      </Box>
+    </Box>
+  );
+
+  return (
+    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+      {/* Sidebar */}
+      <Box
+        component="nav"
+        sx={{
+          width: { md: DRAWER_WIDTH },
+          flexShrink: { md: 0 }
+        }}
+      >
+        {isMobile ? (
+          <Drawer
+            variant="temporary"
+            open={mobileOpen}
+            onClose={handleDrawerToggle}
+            ModalProps={{
+              keepMounted: true,
+            }}
+            sx={{
+              '& .MuiDrawer-paper': {
+                boxSizing: 'border-box',
+                width: DRAWER_WIDTH,
+              },
+            }}
+          >
+            {sidebarContent}
+          </Drawer>
+        ) : (
+          <Drawer
+            variant="permanent"
+            sx={{
+              '& .MuiDrawer-paper': {
+                boxSizing: 'border-box',
+                width: DRAWER_WIDTH,
+                position: 'relative',
+              },
+            }}
+            open
+          >
+            {sidebarContent}
+          </Drawer>
+        )}
+      </Box>
 
       {/* Main Content */}
-      <main className="flex-grow flex flex-col max-w-7xl mx-auto p-6">
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          width: { md: `calc(100% - ${DRAWER_WIDTH}px)` },
+          bgcolor: 'background.default',
+          minHeight: '100vh',
+        }}
+      >
         <Header
           currentView={currentView}
           onViewChange={handleViewChange}
           documentsCount={documentsCount}
+          onMenuClick={handleDrawerToggle}
+          showMenuButton={isMobile}
         />
 
-        {currentView === 'documents' && (
-          <div className="flex flex-col space-y-8 mt-6">
-            {/* Upload Section */}
-            <section className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-2xl font-semibold text-gray-900 mb-2">
-                Carica nuovo documento
-              </h2>
-              <p className="text-gray-600 mb-4">
-                Carica un file PDF per iniziare a chattare con il tuo documento
-              </p>
-              <UploadZone
-                onUploadComplete={handleUploadComplete}
-                onUploadStart={(file) => console.log('Inizio upload:', file.name)}
-              />
-            </section>
+        <Container maxWidth="xl" sx={{ py: 3, height: 'calc(100vh - 64px)', overflow: 'auto' }}>
+          {currentView === 'documents' && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, height: '100%' }}>
+              {/* Upload Section */}
+              <Paper sx={{ p: 3 }}>
+                <Typography variant="h5" component="h2" gutterBottom sx={{ fontWeight: 600 }}>
+                  Carica nuovo documento
+                </Typography>
+                <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+                  Carica un file PDF per iniziare a chattare con il tuo documento
+                </Typography>
+                <UploadZone
+                  onUploadComplete={handleUploadComplete}
+                  onUploadStart={(file) => console.log('Inizio upload:', file.name)}
+                />
+              </Paper>
 
-            {/* Documents List Section */}
-            <section className="bg-white rounded-lg shadow p-6 flex-grow overflow-auto">
-              <DocumentsList
-                onSelectDocument={handleSelectDocument}
-                onDeleteDocument={handleDeleteDocument}
-                refreshTrigger={refreshTrigger}
-              />
-            </section>
-          </div>
-        )}
+              {/* Documents List Section */}
+              <Paper sx={{ p: 3, flexGrow: 1, overflow: 'auto' }}>
+                <DocumentsList
+                  onSelectDocument={handleSelectDocument}
+                  onDeleteDocument={handleDeleteDocument}
+                  refreshTrigger={refreshTrigger}
+                />
+              </Paper>
+            </Box>
+          )}
 
-        {currentView === 'chat' && selectedDocument && (
-          <div className="flex flex-col flex-grow bg-white rounded-lg shadow p-6 mt-6 h-[calc(100vh-8rem)]">
-            <ChatInterface
-              document={selectedDocument}
-              onBack={handleBackFromChat}
-            />
-          </div>
-        )}
-      </main>
-    </div>
+          {currentView === 'chat' && selectedDocument && (
+            <Paper sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+              <ChatInterface
+                document={selectedDocument}
+                onBack={handleBackFromChat}
+              />
+            </Paper>
+          )}
+        </Container>
+      </Box>
+    </Box>
   );
 }
 

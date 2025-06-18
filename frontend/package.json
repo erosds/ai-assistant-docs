@@ -12,14 +12,9 @@
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
-    "@headlessui/react": "^2.2.4",
-    "@heroicons/react": "^2.2.0",
     "@mui/icons-material": "^7.1.1",
     "@mui/material": "^7.1.1",
-    "@tailwindcss/forms": "^0.5.10",
-    "@tailwindcss/typography": "^0.5.16",
     "axios": "^1.10.0",
-    "lucide-react": "^0.517.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-dropzone": "^14.3.8"

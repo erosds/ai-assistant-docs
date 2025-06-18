@@ -1,15 +1,40 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  DocumentTextIcon, 
-  ChatBubbleLeftRightIcon, 
-  TrashIcon,
-  MagnifyingGlassIcon,
-  ArrowPathIcon,
-  EyeIcon,
-  ClockIcon,
-  CheckCircleIcon,
-  ExclamationTriangleIcon
-} from '@heroicons/react/24/outline';
+import {
+  Box,
+  Typography,
+  Grid,
+  Card,
+  CardContent,
+  CardActions,
+  Button,
+  IconButton,
+  TextField,
+  InputAdornment,
+  Chip,
+  Alert,
+  CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Collapse,
+  Divider,
+  Paper,
+  Skeleton
+} from '@mui/material';
+import {
+  Description as DocumentIcon,
+  Chat as ChatIcon,
+  Delete as DeleteIcon,
+  Search as SearchIcon,
+  Refresh as RefreshIcon,
+  Visibility as ViewIcon,
+  CheckCircle as CheckCircleIcon,
+  Schedule as ScheduleIcon,
+  Warning as WarningIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon
+} from '@mui/icons-material';
 import { documentsAPI, formatFileSize, formatDate } from '../../api/client';
 
 const DocumentsList = ({ onSelectDocument, onDeleteDocument, refreshTrigger }) => {
@@ -17,8 +42,8 @@ const DocumentsList = ({ onSelectDocument, onDeleteDocument, refreshTrigger }) =
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedDoc, setSelectedDoc] = useState(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [expandedDoc, setExpandedDoc] = useState(null);
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, documentId: null });
   const [deleting, setDeleting] = useState(null);
 
   // Carica documenti
@@ -48,7 +73,7 @@ const DocumentsList = ({ onSelectDocument, onDeleteDocument, refreshTrigger }) =
       
       // Rimuovi dalla lista locale
       setDocuments(docs => docs.filter(doc => doc.id !== documentId));
-      setShowDeleteConfirm(null);
+      setDeleteDialog({ open: false, documentId: null });
       
       if (onDeleteDocument) {
         onDeleteDocument(documentId);
@@ -77,256 +102,328 @@ const DocumentsList = ({ onSelectDocument, onDeleteDocument, refreshTrigger }) =
     doc.filename.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Stati di caricamento e errore
+  // Loading skeleton
   if (loading && documents.length === 0) {
     return (
-      <div className="space-y-4">
-        <div className="flex justify-between items-center">
-          <h2 className="text-xl font-semibold text-gray-900">I tuoi documenti</h2>
-          <button 
-            onClick={loadDocuments}
-            className="btn-outline flex items-center space-x-2"
-          >
-            <ArrowPathIcon className="w-4 h-4" />
-            <span>Aggiorna</span>
-          </button>
-        </div>
+      <Box>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Box>
+            <Typography variant="h5" gutterBottom>I tuoi documenti</Typography>
+            <Skeleton variant="text" width={200} />
+          </Box>
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <Skeleton variant="rectangular" width={200} height={40} />
+            <Skeleton variant="rectangular" width={100} height={40} />
+          </Box>
+        </Box>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="card animate-pulse">
-              <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-              <div className="h-3 bg-gray-200 rounded w-1/2 mb-4"></div>
-              <div className="space-y-2">
-                <div className="h-3 bg-gray-200 rounded"></div>
-                <div className="h-3 bg-gray-200 rounded w-5/6"></div>
-              </div>
-            </div>
+        <Grid container spacing={3}>
+          {[...Array(6)].map((_, i) => (
+            <Grid item xs={12} md={6} lg={4} key={i}>
+              <Card>
+                <CardContent>
+                  <Skeleton variant="text" width="80%" height={24} />
+                  <Skeleton variant="text" width="60%" height={20} sx={{ mb: 2 }} />
+                  <Skeleton variant="text" width="100%" height={60} />
+                  <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
+                    <Skeleton variant="rectangular" width={80} height={40} />
+                    <Skeleton variant="rectangular" width={80} height={40} />
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
           ))}
-        </div>
-      </div>
+        </Grid>
+      </Box>
     );
   }
 
+  // Stato di errore
   if (error) {
     return (
-      <div className="text-center py-8">
-        <ExclamationTriangleIcon className="w-16 h-16 text-red-500 mx-auto mb-4" />
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">Errore nel caricamento</h3>
-        <p className="text-red-600 mb-4">{error}</p>
-        <button 
-          onClick={loadDocuments}
-          className="btn-primary"
-        >
-          Riprova
-        </button>
-      </div>
+      <Alert 
+        severity="error" 
+        action={
+          <Button color="inherit" size="small" onClick={loadDocuments}>
+            Riprova
+          </Button>
+        }
+        sx={{ mb: 3 }}
+      >
+        <Typography variant="h6" gutterBottom>Errore nel caricamento</Typography>
+        {error}
+      </Alert>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <Box>
       {/* Header con ricerca */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900">I tuoi documenti</h2>
-          <p className="text-gray-600">
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: { xs: 'column', sm: 'row' },
+        justifyContent: 'space-between',
+        alignItems: { xs: 'stretch', sm: 'center' },
+        gap: 2,
+        mb: 3
+      }}>
+        <Box>
+          <Typography variant="h5" gutterBottom sx={{ fontWeight: 600 }}>
+            I tuoi documenti
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
             {documents.length} documento{documents.length !== 1 ? 'i' : ''} caricato{documents.length !== 1 ? 'i' : ''}
-          </p>
-        </div>
+          </Typography>
+        </Box>
         
-        <div className="flex items-center space-x-3">
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
           {/* Barra di ricerca */}
-          <div className="relative">
-            <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Cerca documenti..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 w-64"
-            />
-          </div>
+          <TextField
+            placeholder="Cerca documenti..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            size="small"
+            sx={{ minWidth: 250 }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+            }}
+          />
           
           {/* Pulsante aggiorna */}
-          <button 
+          <Button
             onClick={loadDocuments}
             disabled={loading}
-            className="btn-outline flex items-center space-x-2"
+            variant="outlined"
+            startIcon={loading ? <CircularProgress size={16} /> : <RefreshIcon />}
           >
-            <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            <span>Aggiorna</span>
-          </button>
-        </div>
-      </div>
+            Aggiorna
+          </Button>
+        </Box>
+      </Box>
 
       {/* Lista documenti */}
       {filteredDocuments.length === 0 ? (
-        <div className="text-center py-12">
-          <DocumentTextIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
+        <Paper sx={{ p: 6, textAlign: 'center' }}>
+          <DocumentIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
+          <Typography variant="h6" gutterBottom>
             {searchTerm ? 'Nessun documento trovato' : 'Nessun documento caricato'}
-          </h3>
-          <p className="text-gray-600">
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
             {searchTerm 
               ? 'Prova a modificare i termini di ricerca' 
               : 'Carica il tuo primo documento PDF per iniziare'
             }
-          </p>
-        </div>
+          </Typography>
+        </Paper>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <Grid container spacing={3}>
           {filteredDocuments.map((document) => (
-            <div key={document.id} className="card-hover group">
-              {/* Header documento */}
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center space-x-3 flex-1 min-w-0">
-                  <div className="flex-shrink-0">
-                    <DocumentTextIcon className="w-8 h-8 text-primary-600" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="font-semibold text-gray-900 truncate" title={document.filename}>
-                      {document.filename}
-                    </h3>
-                    <p className="text-sm text-gray-500">
-                      {formatDate(document.upload_date)}
-                    </p>
-                  </div>
-                </div>
-                
-                {/* Status indicator */}
-                <div className="flex-shrink-0">
-                  {document.processing_complete ? (
-                    <CheckCircleIcon className="w-5 h-5 text-green-500" title="Pronto per chat" />
-                  ) : (
-                    <ClockIcon className="w-5 h-5 text-yellow-500 animate-pulse" title="In elaborazione" />
-                  )}
-                </div>
-              </div>
+            <Grid item xs={12} md={6} lg={4} key={document.id}>
+              <Card sx={{ 
+                height: '100%', 
+                display: 'flex', 
+                flexDirection: 'column',
+                transition: 'all 0.2s ease-in-out',
+                '&:hover': {
+                  transform: 'translateY(-2px)',
+                  boxShadow: 4,
+                }
+              }}>
+                {/* Header documento */}
+                <CardContent sx={{ flexGrow: 1 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
+                    <DocumentIcon sx={{ color: 'primary.main', fontSize: 32, mt: 0.5 }} />
+                    <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                      <Typography 
+                        variant="h6" 
+                        component="h3" 
+                        noWrap 
+                        title={document.filename}
+                        sx={{ fontWeight: 600, mb: 0.5 }}
+                      >
+                        {document.filename}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {formatDate(document.upload_date)}
+                      </Typography>
+                    </Box>
+                    
+                    {/* Status indicator */}
+                    {document.processing_complete ? (
+                      <Chip
+                        icon={<CheckCircleIcon />}
+                        label="Pronto"
+                        color="success"
+                        size="small"
+                        variant="outlined"
+                      />
+                    ) : (
+                      <Chip
+                        icon={<ScheduleIcon />}
+                        label="Elaborazione"
+                        color="warning"
+                        size="small"
+                        variant="outlined"
+                      />
+                    )}
+                  </Box>
 
-              {/* Anteprima contenuto */}
-              <div className="mb-4">
-                <p className="text-sm text-gray-600 line-clamp-3">
-                  {document.content_preview}
-                </p>
-              </div>
-
-              {/* Statistiche */}
-              <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
-                <div className="text-center p-2 bg-gray-50 rounded">
-                  <div className="font-semibold text-gray-900">{document.chunk_count}</div>
-                  <div className="text-gray-600">Sezioni</div>
-                </div>
-                <div className="text-center p-2 bg-gray-50 rounded">
-                  <div className="font-semibold text-gray-900">{document.chat_count}</div>
-                  <div className="text-gray-600">Chat</div>
-                </div>
-              </div>
-
-              {/* Azioni */}
-              <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-                <div className="flex items-center space-x-2">
-                  {/* Pulsante Chat */}
-                  <button
-                    onClick={() => handleSelectForChat(document)}
-                    disabled={!document.processing_complete}
-                    className={`
-                      flex items-center space-x-1 px-3 py-1.5 rounded text-sm font-medium transition-colors
-                      ${document.processing_complete 
-                        ? 'bg-primary-100 text-primary-700 hover:bg-primary-200' 
-                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      }
-                    `}
+                  {/* Anteprima contenuto */}
+                  <Typography 
+                    variant="body2" 
+                    color="text.secondary"
+                    sx={{ 
+                      mb: 2,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 3,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      lineHeight: 1.4
+                    }}
                   >
-                    <ChatBubbleLeftRightIcon className="w-4 h-4" />
-                    <span>Chat</span>
-                  </button>
+                    {document.content_preview}
+                  </Typography>
 
-                  {/* Pulsante Dettagli */}
-                  <button
-                    onClick={() => setSelectedDoc(selectedDoc === document.id ? null : document.id)}
-                    className="flex items-center space-x-1 px-3 py-1.5 rounded text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
+                  {/* Statistiche */}
+                  <Grid container spacing={2} sx={{ mb: 2 }}>
+                    <Grid item xs={6}>
+                      <Paper variant="outlined" sx={{ p: 1.5, textAlign: 'center' }}>
+                        <Typography variant="h6" color="primary">
+                          {document.chunk_count}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Sezioni
+                        </Typography>
+                      </Paper>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Paper variant="outlined" sx={{ p: 1.5, textAlign: 'center' }}>
+                        <Typography variant="h6" color="primary">
+                          {document.chat_count}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Chat
+                        </Typography>
+                      </Paper>
+                    </Grid>
+                  </Grid>
+
+                  {/* Dettagli espandibili */}
+                  <Collapse in={expandedDoc === document.id}>
+                    <Divider sx={{ mb: 2 }} />
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="caption" color="text.secondary">ID:</Typography>
+                        <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                          {document.id.substring(0, 8)}...
+                        </Typography>
+                      </Box>
+                      {document.file_size && (
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <Typography variant="caption" color="text.secondary">Dimensione:</Typography>
+                          <Typography variant="caption">
+                            {formatFileSize(document.file_size)}
+                          </Typography>
+                        </Box>
+                      )}
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="caption" color="text.secondary">Status:</Typography>
+                        <Chip
+                          label={document.processing_complete ? 'Pronto' : 'In elaborazione'}
+                          color={document.processing_complete ? 'success' : 'warning'}
+                          size="small"
+                        />
+                      </Box>
+                    </Box>
+                  </Collapse>
+                </CardContent>
+
+                {/* Azioni */}
+                <CardActions sx={{ justifyContent: 'space-between', px: 2, pb: 2 }}>
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    {/* Pulsante Chat */}
+                    <Button
+                      onClick={() => handleSelectForChat(document)}
+                      disabled={!document.processing_complete}
+                      variant="contained"
+                      size="small"
+                      startIcon={<ChatIcon />}
+                    >
+                      Chat
+                    </Button>
+
+                    {/* Pulsante Dettagli */}
+                    <Button
+                      onClick={() => setExpandedDoc(expandedDoc === document.id ? null : document.id)}
+                      variant="outlined"
+                      size="small"
+                      startIcon={expandedDoc === document.id ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                    >
+                      Dettagli
+                    </Button>
+                  </Box>
+
+                  {/* Pulsante Elimina */}
+                  <IconButton
+                    onClick={() => setDeleteDialog({ open: true, documentId: document.id })}
+                    disabled={deleting === document.id}
+                    size="small"
+                    sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}
                   >
-                    <EyeIcon className="w-4 h-4" />
-                    <span>Dettagli</span>
-                  </button>
-                </div>
-
-                {/* Pulsante Elimina */}
-                <button
-                  onClick={() => setShowDeleteConfirm(document.id)}
-                  disabled={deleting === document.id}
-                  className="p-1.5 text-gray-400 hover:text-red-600 rounded transition-colors"
-                >
-                  {deleting === document.id ? (
-                    <ArrowPathIcon className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <TrashIcon className="w-4 h-4" />
-                  )}
-                </button>
-              </div>
-
-              {/* Dettagli espandibili */}
-              {selectedDoc === document.id && (
-                <div className="mt-4 pt-4 border-t border-gray-200 space-y-2 text-sm animate-slide-up">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">ID:</span>
-                    <span className="text-gray-900 font-mono text-xs">{document.id}</span>
-                  </div>
-                  {document.file_size && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Dimensione:</span>
-                      <span className="text-gray-900">{formatFileSize(document.file_size)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Status:</span>
-                    <span className={`font-medium ${
-                      document.processing_complete ? 'text-green-600' : 'text-yellow-600'
-                    }`}>
-                      {document.processing_complete ? 'Pronto' : 'In elaborazione'}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
+                    {deleting === document.id ? (
+                      <CircularProgress size={20} />
+                    ) : (
+                      <DeleteIcon />
+                    )}
+                  </IconButton>
+                </CardActions>
+              </Card>
+            </Grid>
           ))}
-        </div>
+        </Grid>
       )}
 
-      {/* Modal conferma eliminazione */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Conferma eliminazione
-            </h3>
-            <p className="text-gray-600 mb-6">
-              Sei sicuro di voler eliminare questo documento? 
-              Questa azione non può essere annullata e cancellerà anche la cronologia chat associata.
-            </p>
-            <div className="flex items-center justify-end space-x-3">
-              <button
-                onClick={() => setShowDeleteConfirm(null)}
-                className="btn-outline"
-              >
-                Annulla
-              </button>
-              <button
-                onClick={() => handleDelete(showDeleteConfirm)}
-                disabled={deleting}
-                className="btn-danger flex items-center space-x-2"
-              >
-                {deleting === showDeleteConfirm && (
-                  <ArrowPathIcon className="w-4 h-4 animate-spin" />
-                )}
-                <span>Elimina</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      {/* Dialog conferma eliminazione */}
+      <Dialog
+        open={deleteDialog.open}
+        onClose={() => setDeleteDialog({ open: false, documentId: null })}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <WarningIcon color="warning" />
+            Conferma eliminazione
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Typography>
+            Sei sicuro di voler eliminare questo documento? 
+            Questa azione non può essere annullata e cancellerà anche la cronologia chat associata.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button 
+            onClick={() => setDeleteDialog({ open: false, documentId: null })}
+          >
+            Annulla
+          </Button>
+          <Button
+            onClick={() => handleDelete(deleteDialog.documentId)}
+            disabled={deleting}
+            color="error"
+            variant="contained"
+            startIcon={deleting === deleteDialog.documentId ? <CircularProgress size={16} /> : <DeleteIcon />}
+          >
+            Elimina
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
 };
 

@@ -1,12 +1,25 @@
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { 
-  CloudArrowUpIcon, 
-  DocumentTextIcon, 
-  CheckCircleIcon, 
-  ExclamationTriangleIcon,
-  XMarkIcon 
-} from '@heroicons/react/24/outline';
+import {
+  Box,
+  Typography,
+  Button,
+  Paper,
+  LinearProgress,
+  Alert,
+  Card,
+  CardContent,
+  Divider,
+  Chip,
+  useTheme
+} from '@mui/material';
+import {
+  CloudUpload as CloudUploadIcon,
+  Description as DocumentIcon,
+  CheckCircle as CheckCircleIcon,
+  Error as ErrorIcon,
+  Close as CloseIcon
+} from '@mui/icons-material';
 import { uploadAPI, formatFileSize } from '../../api/client';
 
 const UploadZone = ({ onUploadComplete, onUploadStart }) => {
@@ -14,6 +27,7 @@ const UploadZone = ({ onUploadComplete, onUploadStart }) => {
   const [progress, setProgress] = useState(0);
   const [uploadResult, setUploadResult] = useState(null);
   const [error, setError] = useState(null);
+  const theme = useTheme();
 
   const onDrop = useCallback(async (acceptedFiles, rejectedFiles) => {
     // Reset stati precedenti
@@ -86,200 +100,243 @@ const UploadZone = ({ onUploadComplete, onUploadStart }) => {
   // Stato di successo
   if (uploadResult && !error) {
     return (
-      <div className="card text-center space-y-4">
-        <div className="flex justify-center">
-          <CheckCircleIcon className="w-16 h-16 text-green-500" />
-        </div>
-        
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+      <Card sx={{ textAlign: 'center' }}>
+        <CardContent sx={{ p: 4 }}>
+          <CheckCircleIcon sx={{ fontSize: 64, color: 'success.main', mb: 2 }} />
+          
+          <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
             Upload Completato!
-          </h3>
-          <p className="text-gray-600 mb-4">
+          </Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
             Il documento <strong>{uploadResult.document.filename}</strong> è stato caricato con successo.
-          </p>
+          </Typography>
           
-          <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-gray-600">Dimensione:</span>
-              <span className="font-medium">{formatFileSize(uploadResult.document.size_bytes)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Pagine:</span>
-              <span className="font-medium">{uploadResult.document.statistics.total_pages}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Parole:</span>
-              <span className="font-medium">{uploadResult.document.statistics.total_words.toLocaleString()}</span>
-            </div>
-          </div>
+          {/* Statistiche documento */}
+          <Paper variant="outlined" sx={{ p: 2, mb: 3, bgcolor: 'grey.50' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-around', textAlign: 'center' }}>
+              <Box>
+                <Typography variant="h6" color="primary">
+                  {uploadResult.document.statistics.total_words.toLocaleString()}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Parole
+                </Typography>
+              </Box>
+            </Box>
+          </Paper>
           
-          <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-            <p className="text-sm text-blue-800">
-              📝 Il documento è in elaborazione. Potrai iniziare a chattarci tra pochi istanti!
-            </p>
-          </div>
-        </div>
+          <Alert severity="info" sx={{ mb: 3, textAlign: 'left' }}>
+            📝 Il documento è in elaborazione. Potrai iniziare a chattarci tra pochi istanti!
+          </Alert>
 
-        <button
-          onClick={resetUpload}
-          className="btn-primary"
-        >
-          Carica Altro Documento
-        </button>
-      </div>
+          <Button
+            onClick={resetUpload}
+            variant="contained"
+            size="large"
+          >
+            Carica Altro Documento
+          </Button>
+        </CardContent>
+      </Card>
     );
   }
 
   // Stato di errore
   if (error) {
     return (
-      <div className="card text-center space-y-4">
-        <div className="flex justify-center">
-          <ExclamationTriangleIcon className="w-16 h-16 text-red-500" />
-        </div>
-        
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+      <Card sx={{ textAlign: 'center' }}>
+        <CardContent sx={{ p: 4 }}>
+          <ErrorIcon sx={{ fontSize: 64, color: 'error.main', mb: 2 }} />
+          
+          <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
             Errore Upload
-          </h3>
-          <p className="text-red-600 mb-4">
+          </Typography>
+          <Alert severity="error" sx={{ mb: 3 }}>
             {error}
-          </p>
-        </div>
+          </Alert>
 
-        <button
-          onClick={resetUpload}
-          className="btn-primary"
-        >
-          Riprova
-        </button>
-      </div>
+          <Button
+            onClick={resetUpload}
+            variant="contained"
+            size="large"
+          >
+            Riprova
+          </Button>
+        </CardContent>
+      </Card>
     );
   }
 
   // Stato di upload in corso
   if (uploading) {
     return (
-      <div className="card text-center space-y-4">
-        <div className="flex justify-center">
-          <CloudArrowUpIcon className="w-16 h-16 text-primary-500 animate-bounce-subtle" />
-        </div>
-        
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+      <Card sx={{ textAlign: 'center' }}>
+        <CardContent sx={{ p: 4 }}>
+          <CloudUploadIcon 
+            sx={{ 
+              fontSize: 64, 
+              color: 'primary.main', 
+              mb: 2,
+              animation: 'bounce 2s infinite',
+              '@keyframes bounce': {
+                '0%, 20%, 53%, 80%, 100%': {
+                  transform: 'translate3d(0,0,0)',
+                },
+                '40%, 43%': {
+                  transform: 'translate3d(0, -8px, 0)',
+                },
+                '70%': {
+                  transform: 'translate3d(0, -4px, 0)',
+                },
+                '90%': {
+                  transform: 'translate3d(0, -2px, 0)',
+                },
+              }
+            }} 
+          />
+          
+          <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
             Caricamento in corso...
-          </h3>
+          </Typography>
           
           {/* Progress bar */}
-          <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
-            <div 
-              className="bg-primary-600 h-3 rounded-full transition-all duration-300 ease-out"
-              style={{ width: `${progress}%` }}
-            ></div>
-          </div>
+          <Box sx={{ width: '100%', mb: 2 }}>
+            <LinearProgress 
+              variant="determinate" 
+              value={progress} 
+              sx={{ 
+                height: 8, 
+                borderRadius: 4,
+                '& .MuiLinearProgress-bar': {
+                  borderRadius: 4,
+                }
+              }} 
+            />
+          </Box>
           
-          <p className="text-gray-600">
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
             {progress}% completato
-          </p>
+          </Typography>
           
-          <div className="mt-4 space-y-2 text-sm text-gray-500">
-            <div className="flex items-center justify-center space-x-2">
-              <div className="loading-dots">
-                <span style={{'--i': 0}}></span>
-                <span style={{'--i': 1}}></span>
-                <span style={{'--i': 2}}></span>
-              </div>
-              <span>Elaborazione PDF...</span>
-            </div>
-          </div>
-        </div>
-      </div>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+            <Box className="loading-dots">
+              <span style={{'--i': 0}}></span>
+              <span style={{'--i': 1}}></span>
+              <span style={{'--i': 2}}></span>
+            </Box>
+            <Typography variant="body2" color="text.secondary">
+              Elaborazione PDF...
+            </Typography>
+          </Box>
+        </CardContent>
+      </Card>
     );
   }
 
   // Zona di drop principale
   return (
-    <div
+    <Paper
       {...getRootProps()}
-      className={`
-        border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-300
-        ${isDragActive && !isDragReject 
-          ? 'border-primary-400 bg-primary-50 scale-105' 
+      sx={{
+        p: 4,
+        textAlign: 'center',
+        cursor: 'pointer',
+        transition: 'all 0.3s ease',
+        border: '2px dashed',
+        borderColor: isDragActive && !isDragReject 
+          ? 'primary.main' 
           : isDragReject 
-          ? 'border-red-400 bg-red-50' 
-          : 'border-gray-300 hover:border-primary-400 hover:bg-gray-50'
-        }
-      `}
+          ? 'error.main' 
+          : 'grey.300',
+        bgcolor: isDragActive && !isDragReject 
+          ? 'primary.50' 
+          : isDragReject 
+          ? 'error.50' 
+          : 'background.paper',
+        '&:hover': {
+          borderColor: isDragReject ? 'error.main' : 'primary.main',
+          bgcolor: isDragReject ? 'error.50' : 'primary.50',
+          transform: 'scale(1.02)',
+        },
+      }}
     >
       <input {...getInputProps()} />
       
-      <div className="space-y-4">
-        {/* Icona */}
-        <div className="flex justify-center">
-          {isDragReject ? (
-            <XMarkIcon className="w-16 h-16 text-red-400" />
-          ) : (
-            <CloudArrowUpIcon 
-              className={`w-16 h-16 transition-colors duration-300 ${
-                isDragActive ? 'text-primary-500' : 'text-gray-400'
-              }`} 
-            />
-          )}
-        </div>
-
-        {/* Testo principale */}
-        <div>
-          {isDragReject ? (
-            <div>
-              <h3 className="text-lg font-semibold text-red-700 mb-2">
-                File non valido
-              </h3>
-              <p className="text-red-600">
-                Carica solo file PDF fino a 50MB
-              </p>
-            </div>
-          ) : isDragActive ? (
-            <div>
-              <h3 className="text-lg font-semibold text-primary-700 mb-2">
-                Rilascia il PDF qui!
-              </h3>
-              <p className="text-primary-600">
-                Il documento verrà elaborato automaticamente
-              </p>
-            </div>
-          ) : (
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Carica il tuo documento PDF
-              </h3>
-              <p className="text-gray-600 mb-4">
-                Trascina e rilascia qui il file, oppure clicca per selezionarlo
-              </p>
-              
-              <div className="flex items-center justify-center space-x-4 text-sm text-gray-500">
-                <div className="flex items-center space-x-1">
-                  <DocumentTextIcon className="w-4 h-4" />
-                  <span>Solo PDF</span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <span>📏</span>
-                  <span>Max 50MB</span>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Pulsante alternativo */}
-        {!isDragActive && !isDragReject && (
-          <button className="btn-primary">
-            Seleziona File
-          </button>
+      {/* Icona */}
+      <Box sx={{ mb: 3 }}>
+        {isDragReject ? (
+          <CloseIcon sx={{ fontSize: 64, color: 'error.main' }} />
+        ) : (
+          <CloudUploadIcon 
+            sx={{ 
+              fontSize: 64, 
+              color: isDragActive ? 'primary.main' : 'text.disabled',
+              transition: 'color 0.3s ease'
+            }} 
+          />
         )}
-      </div>
-    </div>
+      </Box>
+
+      {/* Testo principale */}
+      {isDragReject ? (
+        <Box>
+          <Typography variant="h6" color="error" gutterBottom sx={{ fontWeight: 600 }}>
+            File non valido
+          </Typography>
+          <Typography variant="body1" color="error">
+            Carica solo file PDF fino a 50MB
+          </Typography>
+        </Box>
+      ) : isDragActive ? (
+        <Box>
+          <Typography variant="h6" color="primary" gutterBottom sx={{ fontWeight: 600 }}>
+            Rilascia il PDF qui!
+          </Typography>
+          <Typography variant="body1" color="primary">
+            Il documento verrà elaborato automaticamente
+          </Typography>
+        </Box>
+      ) : (
+        <Box>
+          <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+            Carica il tuo documento PDF
+          </Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+            Trascina e rilascia qui il file, oppure clicca per selezionarlo
+          </Typography>
+          
+          <Box sx={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            gap: 3, 
+            mb: 3,
+            flexWrap: 'wrap'
+          }}>
+            <Chip
+              icon={<DocumentIcon />}
+              label="Solo PDF"
+              variant="outlined"
+              size="small"
+            />
+            <Chip
+              label="Max 50MB"
+              variant="outlined"
+              size="small"
+            />
+          </Box>
+
+          <Button 
+            variant="contained" 
+            size="large"
+            startIcon={<CloudUploadIcon />}
+            sx={{ borderRadius: 2 }}
+          >
+            Seleziona File
+          </Button>
+        </Box>
+      )}
+    </Paper>
   );
 };
 
-export default UploadZone;
+export default UploadZone
