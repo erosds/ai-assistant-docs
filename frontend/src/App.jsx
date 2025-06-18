@@ -14,7 +14,9 @@ import {
   Divider,
   Badge,
   useTheme,
-  useMediaQuery
+  useMediaQuery,
+  Snackbar,
+  Alert
 } from '@mui/material';
 import {
   Description as DocumentIcon,
@@ -34,6 +36,7 @@ function App() {
   const [documentsCount, setDocumentsCount] = useState(0);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [notification, setNotification] = useState({ open: false, message: '', severity: 'info' });
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -65,19 +68,54 @@ function App() {
   const handleSelectDocument = (document) => {
     setSelectedDocument(document);
     setCurrentView('chat');
+    
+    // Notifica di selezione
+    setNotification({
+      open: true,
+      message: `Chat avviata con "${document.filename}"`,
+      severity: 'success'
+    });
   };
 
   const handleUploadComplete = (result) => {
+    // Trigger refresh della lista documenti
     setRefreshTrigger(prev => prev + 1);
+    
+    // Notifica di upload completato
+    setNotification({
+      open: true,
+      message: `Documento "${result.document.filename}" caricato con successo!`,
+      severity: 'success'
+    });
+    
     console.log('Upload completato:', result);
   };
 
+  const handleUploadStart = (file) => {
+    // Notifica di inizio upload
+    setNotification({
+      open: true,
+      message: `Inizio caricamento di "${file.name}"...`,
+      severity: 'info'
+    });
+  };
+
   const handleDeleteDocument = (documentId) => {
+    // Se il documento eliminato è quello selezionato per la chat, torna alla lista
     if (selectedDocument && selectedDocument.id === documentId) {
       setSelectedDocument(null);
       setCurrentView('documents');
     }
+    
+    // Trigger refresh
     setRefreshTrigger(prev => prev + 1);
+    
+    // Notifica di eliminazione
+    setNotification({
+      open: true,
+      message: 'Documento eliminato con successo',
+      severity: 'info'
+    });
   };
 
   const handleBackFromChat = () => {
@@ -88,12 +126,19 @@ function App() {
     setMobileOpen(!mobileOpen);
   };
 
+  const handleCloseNotification = () => {
+    setNotification(prev => ({ ...prev, open: false }));
+  };
+
   const sidebarContent = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Logo */}
       <Box sx={{ p: 3, textAlign: 'center', borderBottom: 1, borderColor: 'divider' }}>
         <Typography variant="h5" component="div" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
           AI Docs
+        </Typography>
+        <Typography variant="caption" color="text.secondary">
+          Chatta con i tuoi PDF
         </Typography>
       </Box>
 
@@ -150,10 +195,28 @@ function App() {
             <ListItemIcon sx={{ color: currentView === 'chat' ? 'primary.main' : 'inherit' }}>
               <ChatIcon />
             </ListItemIcon>
-            <ListItemText primary="Chat" />
+            <ListItemText 
+              primary="Chat AI"
+              secondary={selectedDocument ? selectedDocument.filename : 'Seleziona un documento'}
+            />
           </ListItemButton>
         </ListItem>
       </List>
+
+      {/* Current selection info */}
+      {selectedDocument && (
+        <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider', bgcolor: 'grey.50' }}>
+          <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            Documento Attivo
+          </Typography>
+          <Typography variant="body2" sx={{ fontWeight: 500, mt: 0.5 }} noWrap>
+            {selectedDocument.filename}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {selectedDocument.chunk_count} sezioni • {selectedDocument.chat_count} chat
+          </Typography>
+        </Box>
+      )}
 
       {/* Footer */}
       <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
@@ -239,7 +302,7 @@ function App() {
                 </Typography>
                 <UploadZone
                   onUploadComplete={handleUploadComplete}
-                  onUploadStart={(file) => console.log('Inizio upload:', file.name)}
+                  onUploadStart={handleUploadStart}
                 />
               </Paper>
 
@@ -264,6 +327,23 @@ function App() {
           )}
         </Container>
       </Box>
+
+      {/* Notification Snackbar */}
+      <Snackbar
+        open={notification.open}
+        autoHideDuration={4000}
+        onClose={handleCloseNotification}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert 
+          onClose={handleCloseNotification} 
+          severity={notification.severity}
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {notification.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

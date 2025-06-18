@@ -274,6 +274,63 @@ async def delete_document(document_id: str):
     except Exception as e:
         logger.error(f"❌ Errore eliminazione documento: {e}")
         raise HTTPException(status_code=500, detail=f"Errore interno: {str(e)}")
+    
+# Aggiungi questo endpoint alla fine del file upload.py, prima dell'ultimo endpoint
+
+@router.post("/upload/status/batch")
+async def get_batch_upload_status(request: dict):
+    """Controlla lo status di multipli documenti in una singola chiamata"""
+    try:
+        document_ids = request.get('document_ids', [])
+        
+        if not document_ids:
+            return {"statuses": []}
+        
+        logger.info(f"🔍 [BATCH] Controllo status per {len(document_ids)} documenti")
+        
+        document_manager = get_document_manager()
+        document_indexer = get_document_indexer()
+        
+        statuses = []
+        
+        for doc_id in document_ids:
+            try:
+                document = await document_manager.get_document(doc_id)
+                
+                if document:
+                    index_stats = await document_indexer.get_index_stats(doc_id)
+                    processing_complete = index_stats.get("status") == "loaded"
+                    
+                    status = {
+                        "document_id": doc_id,
+                        "filename": document["filename"],
+                        "processing_complete": processing_complete,
+                        "chunk_count": document.get("chunk_count", 0),
+                        "chat_count": document.get("chat_count", 0)
+                    }
+                else:
+                    status = {
+                        "document_id": doc_id,
+                        "error": "Document not found",
+                        "processing_complete": False
+                    }
+                
+                statuses.append(status)
+                
+            except Exception as e:
+                logger.error(f"❌ [BATCH] Errore status per {doc_id}: {e}")
+                statuses.append({
+                    "document_id": doc_id,
+                    "error": str(e),
+                    "processing_complete": False
+                })
+        
+        logger.info(f"✅ [BATCH] Status recuperati per {len(statuses)} documenti")
+        return {"statuses": statuses}
+        
+    except Exception as e:
+        logger.error(f"❌ [BATCH] Errore batch status: {e}")
+        raise HTTPException(status_code=500, detail=f"Errore interno: {str(e)}")
 
 @router.get("/upload/validate")
 async def validate_upload_settings():

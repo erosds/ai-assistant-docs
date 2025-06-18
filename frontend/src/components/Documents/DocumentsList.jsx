@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -20,7 +20,8 @@ import {
   Collapse,
   Divider,
   Paper,
-  Skeleton
+  Skeleton,
+  Tooltip
 } from '@mui/material';
 import {
   Description as DocumentIcon,
@@ -33,7 +34,8 @@ import {
   Schedule as ScheduleIcon,
   Warning as WarningIcon,
   ExpandMore as ExpandMoreIcon,
-  ExpandLess as ExpandLessIcon
+  ExpandLess as ExpandLessIcon,
+  AutorenewOutlined as AutoRefreshIcon
 } from '@mui/icons-material';
 import { documentsAPI, formatFileSize, formatDate, uploadAPI } from '../../api/client';
 
@@ -45,25 +47,70 @@ const DocumentsList = ({ onSelectDocument, onDeleteDocument, refreshTrigger }) =
   const [expandedDoc, setExpandedDoc] = useState(null);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, documentId: null });
   const [deleting, setDeleting] = useState(null);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [hasProcessingDocs, setHasProcessingDocs] = useState(false);
+  
+  const autoRefreshInterval = useRef(null);
+
+  // Controlla se ci sono documenti in elaborazione
+  const checkProcessingDocs = (docs) => {
+    const processing = docs.some(doc => !doc.processing_complete);
+    setHasProcessingDocs(processing);
+    return processing;
+  };
 
   // Carica documenti
-  const loadDocuments = async () => {
+  const loadDocuments = async (showLoading = false) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       setError(null);
+      
       const response = await documentsAPI.getDocuments(1, 50, searchTerm);
       setDocuments(response.documents);
+      
+      // Controlla se ci sono documenti in elaborazione
+      checkProcessingDocs(response.documents);
+      
     } catch (err) {
       setError(err.message);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
+  // Auto-refresh quando ci sono documenti in elaborazione
+  useEffect(() => {
+    if (autoRefresh && hasProcessingDocs) {
+      autoRefreshInterval.current = setInterval(() => {
+        loadDocuments(false); // Refresh silenzioso
+      }, 5000); // Ogni 5 secondi
+    } else {
+      if (autoRefreshInterval.current) {
+        clearInterval(autoRefreshInterval.current);
+        autoRefreshInterval.current = null;
+      }
+    }
+
+    return () => {
+      if (autoRefreshInterval.current) {
+        clearInterval(autoRefreshInterval.current);
+      }
+    };
+  }, [autoRefresh, hasProcessingDocs]);
+
   // Effetti
   useEffect(() => {
-    loadDocuments();
+    loadDocuments(true);
   }, [searchTerm, refreshTrigger]);
+
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      if (autoRefreshInterval.current) {
+        clearInterval(autoRefreshInterval.current);
+      }
+    };
+  }, []);
 
   // Gestisci eliminazione documento
   const handleDelete = async (documentId) => {
@@ -72,7 +119,9 @@ const DocumentsList = ({ onSelectDocument, onDeleteDocument, refreshTrigger }) =
       await uploadAPI.deleteDocument(documentId);
       
       // Rimuovi dalla lista locale
-      setDocuments(docs => docs.filter(doc => doc.id !== documentId));
+      const updatedDocs = documents.filter(doc => doc.id !== documentId);
+      setDocuments(updatedDocs);
+      checkProcessingDocs(updatedDocs);
       setDeleteDialog({ open: false, documentId: null });
       
       if (onDeleteDocument) {
@@ -94,6 +143,27 @@ const DocumentsList = ({ onSelectDocument, onDeleteDocument, refreshTrigger }) =
     
     if (onSelectDocument) {
       onSelectDocument(document);
+    }
+  };
+
+  // Aggiorna singolo documento
+  const refreshSingleDocument = async (documentId) => {
+    try {
+      const status = await uploadAPI.getUploadStatus(documentId);
+      
+      // Aggiorna il documento nella lista
+      setDocuments(prev => prev.map(doc => 
+        doc.id === documentId 
+          ? {
+              ...doc,
+              processing_complete: status.processing_complete,
+              chunk_count: status.chunk_count || doc.chunk_count
+            }
+          : doc
+      ));
+      
+    } catch (err) {
+      console.error('Errore aggiornamento documento:', err);
     }
   };
 
@@ -144,7 +214,7 @@ const DocumentsList = ({ onSelectDocument, onDeleteDocument, refreshTrigger }) =
       <Alert 
         severity="error" 
         action={
-          <Button color="inherit" size="small" onClick={loadDocuments}>
+          <Button color="inherit" size="small" onClick={() => loadDocuments(true)}>
             Riprova
           </Button>
         }
@@ -158,7 +228,7 @@ const DocumentsList = ({ onSelectDocument, onDeleteDocument, refreshTrigger }) =
 
   return (
     <Box>
-      {/* Header con ricerca */}
+      {/* Header con ricerca e controlli */}
       <Box sx={{ 
         display: 'flex', 
         flexDirection: { xs: 'column', sm: 'row' },
@@ -168,11 +238,36 @@ const DocumentsList = ({ onSelectDocument, onDeleteDocument, refreshTrigger }) =
         mb: 3
       }}>
         <Box>
-          <Typography variant="h5" gutterBottom sx={{ fontWeight: 600 }}>
-            I tuoi documenti
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="h5" sx={{ fontWeight: 600 }}>
+              I tuoi documenti
+            </Typography>
+            {hasProcessingDocs && autoRefresh && (
+              <Tooltip title="Aggiornamento automatico attivo">
+                <AutoRefreshIcon 
+                  sx={{ 
+                    color: 'primary.main', 
+                    fontSize: 20,
+                    animation: 'spin 2s linear infinite',
+                    '@keyframes spin': {
+                      '0%': { transform: 'rotate(0deg)' },
+                      '100%': { transform: 'rotate(360deg)' },
+                    }
+                  }} 
+                />
+              </Tooltip>
+            )}
+          </Box>
           <Typography variant="body2" color="text.secondary">
             {documents.length} documento{documents.length !== 1 ? 'i' : ''} caricato{documents.length !== 1 ? 'i' : ''}
+            {hasProcessingDocs && (
+              <>
+                {' • '}
+                <span style={{ color: 'orange' }}>
+                  {documents.filter(d => !d.processing_complete).length} in elaborazione
+                </span>
+              </>
+            )}
           </Typography>
         </Box>
         
@@ -193,9 +288,23 @@ const DocumentsList = ({ onSelectDocument, onDeleteDocument, refreshTrigger }) =
             }}
           />
           
+          {/* Toggle auto-refresh */}
+          {hasProcessingDocs && (
+            <Tooltip title={autoRefresh ? "Disabilita aggiornamento automatico" : "Abilita aggiornamento automatico"}>
+              <Button
+                onClick={() => setAutoRefresh(!autoRefresh)}
+                variant={autoRefresh ? "contained" : "outlined"}
+                size="small"
+                startIcon={<AutoRefreshIcon />}
+              >
+                Auto
+              </Button>
+            </Tooltip>
+          )}
+          
           {/* Pulsante aggiorna */}
           <Button
-            onClick={loadDocuments}
+            onClick={() => loadDocuments(true)}
             disabled={loading}
             variant="outlined"
             startIcon={loading ? <CircularProgress size={16} /> : <RefreshIcon />}
@@ -204,6 +313,27 @@ const DocumentsList = ({ onSelectDocument, onDeleteDocument, refreshTrigger }) =
           </Button>
         </Box>
       </Box>
+
+      {/* Alert per documenti in elaborazione */}
+      {hasProcessingDocs && (
+        <Alert 
+          severity="info" 
+          sx={{ mb: 3 }}
+          action={
+            <Button 
+              size="small" 
+              onClick={() => setAutoRefresh(!autoRefresh)}
+            >
+              {autoRefresh ? 'Disabilita' : 'Abilita'} Auto-refresh
+            </Button>
+          }
+        >
+          <Typography variant="body2">
+            {documents.filter(d => !d.processing_complete).length} documento{documents.filter(d => !d.processing_complete).length !== 1 ? 'i' : ''} in elaborazione. 
+            {autoRefresh ? ' La lista si aggiorna automaticamente.' : ' Clicca "Aggiorna" per vedere i progressi.'}
+          </Typography>
+        </Alert>
+      )}
 
       {/* Lista documenti */}
       {filteredDocuments.length === 0 ? (
@@ -228,6 +358,8 @@ const DocumentsList = ({ onSelectDocument, onDeleteDocument, refreshTrigger }) =
                 display: 'flex', 
                 flexDirection: 'column',
                 transition: 'all 0.2s ease-in-out',
+                border: !document.processing_complete ? 2 : 1,
+                borderColor: !document.processing_complete ? 'warning.main' : 'divider',
                 '&:hover': {
                   transform: 'translateY(-2px)',
                   boxShadow: 4,
@@ -252,24 +384,39 @@ const DocumentsList = ({ onSelectDocument, onDeleteDocument, refreshTrigger }) =
                       </Typography>
                     </Box>
                     
-                    {/* Status indicator */}
-                    {document.processing_complete ? (
-                      <Chip
-                        icon={<CheckCircleIcon />}
-                        label="Pronto"
-                        color="success"
-                        size="small"
-                        variant="outlined"
-                      />
-                    ) : (
-                      <Chip
-                        icon={<ScheduleIcon />}
-                        label="Elaborazione"
-                        color="warning"
-                        size="small"
-                        variant="outlined"
-                      />
-                    )}
+                    {/* Status indicator con refresh individuale */}
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                      {document.processing_complete ? (
+                        <Chip
+                          icon={<CheckCircleIcon />}
+                          label="Pronto"
+                          color="success"
+                          size="small"
+                          variant="outlined"
+                        />
+                      ) : (
+                        <Chip
+                          icon={<ScheduleIcon />}
+                          label="Elaborazione"
+                          color="warning"
+                          size="small"
+                          variant="outlined"
+                        />
+                      )}
+                      
+                      {/* Pulsante refresh individuale per documenti in elaborazione */}
+                      {!document.processing_complete && (
+                        <Tooltip title="Controlla stato">
+                          <IconButton
+                            size="small"
+                            onClick={() => refreshSingleDocument(document.id)}
+                            sx={{ color: 'text.secondary' }}
+                          >
+                            <RefreshIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </Box>
                   </Box>
 
                   {/* Anteprima contenuto */}
@@ -311,6 +458,22 @@ const DocumentsList = ({ onSelectDocument, onDeleteDocument, refreshTrigger }) =
                       </Paper>
                     </Grid>
                   </Grid>
+
+                  {/* Indicatore di elaborazione */}
+                  {!document.processing_complete && (
+                    <Alert severity="warning" sx={{ mb: 2 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Box className="loading-dots">
+                          <span style={{'--i': 0}}></span>
+                          <span style={{'--i': 1}}></span>
+                          <span style={{'--i': 2}}></span>
+                        </Box>
+                        <Typography variant="body2">
+                          Elaborazione in corso...
+                        </Typography>
+                      </Box>
+                    </Alert>
+                  )}
 
                   {/* Dettagli espandibili */}
                   <Collapse in={expandedDoc === document.id}>

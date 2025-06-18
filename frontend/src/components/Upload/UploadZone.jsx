@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import {
   Box,
@@ -18,7 +18,8 @@ import {
   Description as DocumentIcon,
   CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
-  Close as CloseIcon
+  Close as CloseIcon,
+  Schedule as ScheduleIcon
 } from '@mui/icons-material';
 import { uploadAPI, formatFileSize } from '../../api/client';
 
@@ -27,12 +28,61 @@ const UploadZone = ({ onUploadComplete, onUploadStart }) => {
   const [progress, setProgress] = useState(0);
   const [uploadResult, setUploadResult] = useState(null);
   const [error, setError] = useState(null);
+  const [processingStatus, setProcessingStatus] = useState(null);
+  const [pollingActive, setPollingActive] = useState(false);
   const theme = useTheme();
+
+  // Polling per controllare lo stato del processing
+  useEffect(() => {
+    let interval;
+    
+    if (pollingActive && uploadResult?.document?.id) {
+      const checkStatus = async () => {
+        try {
+          const status = await uploadAPI.getUploadStatus(uploadResult.document.id);
+          setProcessingStatus(status);
+          
+          // Se il processing è completato, ferma il polling
+          if (status.processing_complete) {
+            setPollingActive(false);
+            // Notifica il componente padre dell'aggiornamento
+            if (onUploadComplete) {
+              onUploadComplete({
+                ...uploadResult,
+                document: {
+                  ...uploadResult.document,
+                  processing_complete: true,
+                  chunk_count: status.chunk_count
+                }
+              });
+            }
+          }
+        } catch (err) {
+          console.error('Errore controllo status:', err);
+          // Continua il polling anche in caso di errore
+        }
+      };
+
+      // Controllo immediato
+      checkStatus();
+      
+      // Polling ogni 3 secondi
+      interval = setInterval(checkStatus, 3000);
+    }
+
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [pollingActive, uploadResult, onUploadComplete]);
 
   const onDrop = useCallback(async (acceptedFiles, rejectedFiles) => {
     // Reset stati precedenti
     setError(null);
     setUploadResult(null);
+    setProcessingStatus(null);
+    setPollingActive(false);
 
     // Gestisci file rifiutati
     if (rejectedFiles.length > 0) {
@@ -66,6 +116,10 @@ const UploadZone = ({ onUploadComplete, onUploadStart }) => {
 
       setUploadResult(result);
       
+      // Avvia il polling per controllare lo stato del processing
+      setPollingActive(true);
+      
+      // Notifica immediata dell'upload (anche se non ancora processato)
       if (onUploadComplete) {
         onUploadComplete(result);
       }
@@ -95,10 +149,109 @@ const UploadZone = ({ onUploadComplete, onUploadStart }) => {
   const resetUpload = () => {
     setUploadResult(null);
     setError(null);
+    setProcessingStatus(null);
+    setPollingActive(false);
   };
 
-  // Stato di successo
-  if (uploadResult && !error) {
+  // Stato di elaborazione in corso
+  if (uploadResult && !error && pollingActive) {
+    const isComplete = processingStatus?.processing_complete || false;
+    
+    return (
+      <Card sx={{ textAlign: 'center' }}>
+        <CardContent sx={{ p: 4 }}>
+          {isComplete ? (
+            <CheckCircleIcon sx={{ fontSize: 64, color: 'success.main', mb: 2 }} />
+          ) : (
+            <ScheduleIcon 
+              sx={{ 
+                fontSize: 64, 
+                color: 'warning.main', 
+                mb: 2,
+                animation: isComplete ? 'none' : 'pulse 2s infinite',
+                '@keyframes pulse': {
+                  '0%': { opacity: 1 },
+                  '50%': { opacity: 0.5 },
+                  '100%': { opacity: 1 },
+                }
+              }} 
+            />
+          )}
+          
+          <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+            {isComplete ? 'Elaborazione Completata!' : 'Elaborazione in Corso...'}
+          </Typography>
+          
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+            Il documento <strong>{uploadResult.document.filename}</strong> è stato caricato{isComplete ? ' ed è pronto per l\'uso' : ' e viene elaborato'}.
+          </Typography>
+          
+          {!isComplete && (
+            <Alert severity="info" sx={{ mb: 3, textAlign: 'left' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box className="loading-dots">
+                  <span style={{'--i': 0}}></span>
+                  <span style={{'--i': 1}}></span>
+                  <span style={{'--i': 2}}></span>
+                </Box>
+                <Typography variant="body2">
+                  Il documento viene suddiviso in sezioni e indicizzato per la ricerca AI...
+                </Typography>
+              </Box>
+            </Alert>
+          )}
+
+          {/* Statistiche in tempo reale */}
+          {processingStatus && (
+            <Paper variant="outlined" sx={{ p: 2, mb: 3, bgcolor: 'grey.50' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-around', textAlign: 'center' }}>
+                <Box>
+                  <Typography variant="h6" color="primary">
+                    {processingStatus.chunk_count || 0}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Sezioni
+                  </Typography>
+                </Box>
+                <Box>
+                  <Typography variant="h6" color={isComplete ? 'success.main' : 'warning.main'}>
+                    {isComplete ? 'Pronto' : 'In corso'}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Stato
+                  </Typography>
+                </Box>
+              </Box>
+            </Paper>
+          )}
+
+          {isComplete && (
+            <Alert severity="success" sx={{ mb: 3, textAlign: 'left' }}>
+              ✅ Documento pronto! Ora puoi iniziare a chattare con il contenuto.
+            </Alert>
+          )}
+
+          <Button
+            onClick={resetUpload}
+            variant="contained"
+            size="large"
+            disabled={!isComplete}
+          >
+            Carica Altro Documento
+          </Button>
+          
+          {!isComplete && (
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
+              L'elaborazione continua in background. Puoi caricare altri documenti nel frattempo.
+            </Typography>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Stato di successo (fallback per compatibilità)
+  if (uploadResult && !error && !pollingActive) {
     return (
       <Card sx={{ textAlign: 'center' }}>
         <CardContent sx={{ p: 4 }}>
@@ -126,7 +279,7 @@ const UploadZone = ({ onUploadComplete, onUploadStart }) => {
           </Paper>
           
           <Alert severity="info" sx={{ mb: 3, textAlign: 'left' }}>
-            📝 Il documento è in elaborazione. Potrai iniziare a chattarci tra pochi istanti!
+            📝 Il documento è pronto per l'uso!
           </Alert>
 
           <Button

@@ -148,7 +148,6 @@ coverage.xml
 .ipynb_checkpoints
 
 # Machine Learning models (se scaricati localmente)
-models/
 *.model
 *.bin
 *.h5
